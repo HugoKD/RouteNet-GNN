@@ -1,6 +1,27 @@
 import tensorflow as tf
+# Les fonctions utiliser dans le papier sont des GRUs, voir l'auter implémentation pour utiliser des LSTM -> meilleurs resultats
+#  sequential model with an RNN (Figure 4). Particularly,we choose a Gated Recurrent Unit (GRU).
+"""
+Fonctionnement de l'algo : 
+On initialise tous les q,l,f en encodant les infos de base dans un vecteur dense
+Etape 1 : Message passing (en T steps)
+- pour chaque flow, on vient encoder les etats des liens que le composent en prenant compte l'etat du lien au global ainsi que l'état de q
+(on rappelle uin flow est composé d'un ensemble de liens f_i = {(q_(i,1),l_(i,1)....}), on itere sur chaque couple (q,l) E f 
+- on genere un message propre aux q de f qui traduis cet embedding de f_l_t
+- pour chaque q dans le réseau : Le nouveau état de q est obtenu en prennant en compte tous les états de f_q_t qui traverse q (tous les liens qui traversent q)
+et puis on update l'état q en prennant en compte ce nouveau calcul avec l'état de q auparavent 
+- on fait la meme chose pour les liens, on ititialise une fonction, pour tous les q composants l on aggrege et update
+Etape 2 : Partie Readout 
+- on va venir calculer et predire les mesure pertinentes en utilisant les états de flows
+- Pour chaque couple (q,l) composant le flow f, on va venir calculer via une fonction readout le delay "instantané" du lien, via 
+la valeur de l'emdedding du lien de ce flow au temps t = T (final). On divise cela par la capacité du lien pour obtenir le delay sur le lien.(bande passante du lien)
+La prédiction glabale est la somme des delays sur les liens de chaque flow. (en tout on calcule le delay de transmission et du queuing, en gros 
+combien de temps on perd à etre dans la file d'attente ainsi que le delai pour transmettre un paquet d'un buffer à un autre)   
+On fait la meme avec le jitter along the flow)
+La mesure paquet loss est calculé via le readout de l'embedding du flow f au temps t = T.
 
-
+En gros link/queue to path -> path to queue -> queue to link
+"""
 class RouteNet_Fermi(tf.keras.Model):
     def __init__(self):
         super(RouteNet_Fermi, self).__init__()
@@ -13,12 +34,12 @@ class RouteNet_Fermi(tf.keras.Model):
         self.num_policies = 4
         self.max_num_queues = 3
 
-        self.iterations = 8
-        self.path_state_dim = 32
+        self.iterations = 8 #nombre de step dans le message passing
+        self.path_state_dim = 32 # 32 = dimension de l'embedding du chemin (source, destination)
         self.link_state_dim = 32
         self.queue_state_dim = 32
 
-        self.z_score = {'traffic': [1385.4058837890625, 859.8118896484375],
+        self.z_score = {'traffic': [1385.4058837890625, 859.8118896484375], #normalisation des entrées
                         'packets': [1.4015231132507324, 0.8932565450668335],
                         'eq_lambda': [1350.97119140625, 858.316162109375],
                         'avg_pkts_lambda': [0.9117304086685181, 0.9723503589630127],
@@ -41,7 +62,7 @@ class RouteNet_Fermi(tf.keras.Model):
 
         self.queue_embedding = tf.keras.Sequential([
             tf.keras.layers.Input(shape=self.max_num_queues + 2),
-            tf.keras.layers.Dense(self.queue_state_dim, activation=tf.keras.activations.relu),
+            tf.keras.layers.Dense(self.queue_state_dim, activation=tf.keras.activations.relu), #rpz denses des queues
             tf.keras.layers.Dense(self.queue_state_dim, activation=tf.keras.activations.relu)
         ])
 
@@ -50,8 +71,9 @@ class RouteNet_Fermi(tf.keras.Model):
             tf.keras.layers.Dense(self.link_state_dim, activation=tf.keras.activations.relu),
             tf.keras.layers.Dense(self.link_state_dim, activation=tf.keras.activations.relu)
         ])
-
-        self.readout_path = tf.keras.Sequential([
+        #fn readout pour lire chaque chemin qui sert à calculer la sortie finale du modele (delai sur chemin par ex)
+        # un flow suit un path (source -> destination), un flow est un ensemble f_i = {(q_(i,1),l_(i,1)....}
+        self.readout_path = tf.keras.Sequential([ # pas un gru
             tf.keras.layers.Input(shape=(None, self.path_state_dim)),
             tf.keras.layers.Dense(int(self.link_state_dim / 2),
                                   activation=tf.keras.activations.relu),
@@ -65,7 +87,7 @@ class RouteNet_Fermi(tf.keras.Model):
         traffic = inputs['traffic']
         packets = inputs['packets']
         length = inputs['length']
-        model = inputs['model']
+        model = inputs['model'] #voir ce que ca represente
         eq_lambda = inputs['eq_lambda']
         avg_pkts_lambda = inputs['avg_pkts_lambda']
         exp_max_factor = inputs['exp_max_factor']
@@ -88,10 +110,12 @@ class RouteNet_Fermi(tf.keras.Model):
         path_to_queue = inputs['path_to_queue']
         queue_to_link = inputs['queue_to_link']
 
+        #calcul du taux de charge
+        # au début le taux est nul ?
         path_gather_traffic = tf.gather(traffic, path_to_link[:, :, 0])
         load = tf.math.reduce_sum(path_gather_traffic, axis=1) / capacity
 
-        pkt_size = traffic / packets
+        pkt_size = traffic / packets #taille moyen des paquets
 
         # Initialize the initial hidden state for links
         path_state = self.path_embedding(tf.concat(

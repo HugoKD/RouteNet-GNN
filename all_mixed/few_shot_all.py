@@ -1,11 +1,16 @@
+## entrainement du modele avec une technique few shot learnning
+
+#Le but de cette section "seed" est d'assurer la reproductibilité de l'entraînement en fixant
+# une graine aléatoire pour toutes les opérations utilisant des nombres aléatoires.
+
 seed_value = 69420
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1" # on utilise le CPU
 os.environ['PYTHONHASHSEED'] = str(seed_value)
 import random
 
-random.seed(seed_value)
+random.seed(seed_value) #on fixe la grainne pour la générationn de nombre aléatoire
 import numpy as np
 
 np.random.seed(seed_value)
@@ -21,6 +26,9 @@ sys.path.append('../')
 from delay_model import RouteNet_Fermi
 
 seed = 0
+
+################################################
+################################################
 
 for i in range(5):
     for num_samples in [10000, 5000, 2000, 1000, 500, 100, 50, 25]:
@@ -43,7 +51,7 @@ for i in range(5):
                       run_eagerly=False)
 
         filepath = os.path.join(ckpt_dir, "{epoch:02d}-{val_loss:.2f}")
-
+        #Callback pour sauvegarder les meilleurs poids du modèle
         cp_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=filepath,
             verbose=1,
@@ -53,10 +61,11 @@ for i in range(5):
             save_weights_only=True,
             save_freq='epoch')
 
+        #chargement des données d'entraînement et de validation
         ds_train = input_fn(TRAIN_PATH, seed=seed, shuffle=True)
-        ds_train = ds_train.prefetch(tf.data.experimental.AUTOTUNE)
-        ds_train = ds_train.take(num_samples)
-        ds_train = ds_train.repeat()
+        ds_train = ds_train.prefetch(tf.data.experimental.AUTOTUNE) #Améliore les performances en préchargeant les données pendant que le modèle s'entraîne.
+        ds_train = ds_train.take(num_samples) #echantillonage de ds_train
+        ds_train = ds_train.repeat() #fait en sorte que les données d'entraînement soient répétées pendant l'entraînement.
 
         ds_validation = input_fn(VALIDATION_PATH, shuffle=False)
         ds_validation = ds_validation.prefetch(tf.data.experimental.AUTOTUNE)

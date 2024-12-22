@@ -1,10 +1,12 @@
+# Les datasets ne sont pas accessibles pour la prediction sur les real traffic
+
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 import re
 import numpy as np
 import tensorflow as tf
-from data_generator import input_fn
+from data_generator import input_fn #data generator utilise datanet API
 
 import sys
 
@@ -16,18 +18,21 @@ optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
 model = RouteNet_Fermi()
 
-loss_object = tf.keras.losses.MeanAbsolutePercentageError()
+loss_object = tf.keras.losses.MeanAbsolutePercentageError() # MAPE
 
 model.compile(loss=loss_object,
               optimizer=optimizer,
-              run_eagerly=False)
+              run_eagerly=False) #Early stop
 
 best = None
-best_mre = float('inf')
+best_mre = float('inf') #  Mean Relative Error
 
 ckpt_dir = f'./ckpt_dir'
 
-for f in os.listdir(ckpt_dir):
+#deux fichiers, l'index -> cxontient l'index des vairbales du model
+# .datra-0000-of ... contient les valeurs reeelles des poids et des biais
+
+for f in os.listdir(ckpt_dir): #Le score MRE est doné dans le nom du checkpoint
     if os.path.isfile(os.path.join(ckpt_dir, f)):
         reg = re.findall("\d+\.\d+", f)
         if len(reg) > 0:
@@ -39,7 +44,6 @@ for f in os.listdir(ckpt_dir):
                 best_mre = mre
 
 print("BEST CHECKOINT FOUND FOR: {}".format(best))
-
 model.load_weights(os.path.join(ckpt_dir, best))
 
 ds_test = input_fn(TEST_PATH, shuffle=False)

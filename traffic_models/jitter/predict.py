@@ -1,3 +1,5 @@
+## Predict le jitter d'un  rs
+
 import os
 import re
 import numpy as np
@@ -7,10 +9,11 @@ from data_generator import input_fn
 import sys
 
 sys.path.append('../../')
+print('gcwd',os.getcwd())
 from jitter_model import RouteNet_Fermi
 
-for tm in ['constant_bitrate', 'onoff', 'autocorrelated', 'modulated', 'all_multiplexed']:
-    TEST_PATH = f'../../data/traffic_models/{tm}/test'
+for tm in ['constant_bitrate', 'onoff', 'autocorrelated', 'modulated', 'all_multiplexed']: #5 tyoes de trafic réseau (cf colab)
+    TEST_PATH = f'../../data/traffic_models/{tm}/test' ## les données sont liées au type de réseau
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 

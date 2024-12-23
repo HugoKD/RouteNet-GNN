@@ -23,7 +23,7 @@ import sys
 sys.path.append('../')
 from datanetAPI import DatanetAPI  # This API may be different for different versions of the dataset
 
-POLICIES = np.array(['WFQ', 'SP', 'DRR', 'FIFO'])
+POLICIES = np.array(['WFQ', 'SP', 'DRR', 'FIFO']) #policy for queuing
 
 
 def generator(data_dir, shuffle):
@@ -32,24 +32,25 @@ def generator(data_dir, shuffle):
     except (UnicodeDecodeError, AttributeError):
         pass
     tool = DatanetAPI(data_dir, shuffle=shuffle)
-    it = iter(tool)
+    it = iter(tool) #iterator
     num_samples = 0
     for sample in it:
         num_samples += 1
-        G = nx.DiGraph(sample.get_topology_object())
-        T = sample.get_traffic_matrix()
-        R = sample.get_routing_matrix()
-        P = sample.get_performance_matrix()
-        HG = network_to_hypergraph(G=G, R=R, T=T, P=P)
+        G = nx.DiGraph(sample.get_topology_object()) # info abt topo
+        T = sample.get_traffic_matrix() #traffic matrix = flow level informations
+        R = sample.get_routing_matrix()  # table de routage
+        P = sample.get_performance_matrix() # perf
+        HG = network_to_hypergraph(G=G, R=R, T=T, P=P) # see later, création d'un hypergraphe contenant TOUTES les infos utiles
 
         ret = hypergraph_to_input_data(HG)
-        num_samples += 1
+        num_samples += 1 # num sample + 2 ???
         # SKIP SAMPLES WITH ZERO OR NEGATIVE VALUES
         if not all(x > 0 for x in ret[1]):
             continue
-        yield ret
+        yield ret #generator object, we've to iterate with next(generator) to get the value of the next sample !
 
 
+#transforme un hypergraphe dans un format exploitable par le model RouteNEt
 def hypergraph_to_input_data(HG):
     n_q = 0
     n_p = 0
@@ -137,7 +138,7 @@ def hypergraph_to_input_data(HG):
             "path_to_link": tf.ragged.constant(path_to_link, ragged_rank=1)
             }, list(nx.get_node_attributes(HG, 'delay').values())
 
-
+#transforme une rpz réseau (graphe dirigé) en un hypergraphe contenant toutes les infos utiles sous formes de graphes (liens, chemins, queues)
 def network_to_hypergraph(G, R, T, P):
     D_G = nx.DiGraph()
     for src in range(G.number_of_nodes()):

@@ -1,18 +1,22 @@
-# Les datasets ne sont pas accessibles pour la prediction sur les real traffic
-
+# Faire une prédiction en prenant les meilleurs poids de modele routenet après entraienement
+#ici les real traces contiennent des topologies qui ont reellement erxistées
+#Abilene : Une ancienne infrastructure de recherche utilisée aux États-Unis
+#GEANT : Une infrastructure réseau européenne interconnectant des institutions de recherche
+#Germany50 et Nobel : Des topologies de référence utilisées dans la recherche en réseau
+#les fichiers graphs sont au format graphML (XLM based file format for grpahs)
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 import re
 import numpy as np
 import tensorflow as tf
-from data_generator import input_fn #data generator utilise datanet API
+from data_generator import input_fn # Data generator utilise datanet API
 
 import sys
 
 from delay_model import RouteNet_Fermi
 
-TEST_PATH = f'/data/TON23/real_traces'
+TEST_PATH = f'../data/TON23/real_traces/test/test'
 
 optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
@@ -22,7 +26,7 @@ loss_object = tf.keras.losses.MeanAbsolutePercentageError() # MAPE
 
 model.compile(loss=loss_object,
               optimizer=optimizer,
-              run_eagerly=False) #Early stop
+              run_eagerly=False) #Pas d'early stop
 
 best = None
 best_mre = float('inf') #  Mean Relative Error
@@ -31,7 +35,7 @@ ckpt_dir = f'./ckpt_dir'
 
 #deux fichiers, l'index -> cxontient l'index des vairbales du model
 # .datra-0000-of ... contient les valeurs reeelles des poids et des biais
-
+#on prend le meilleur
 for f in os.listdir(ckpt_dir): #Le score MRE est doné dans le nom du checkpoint
     if os.path.isfile(os.path.join(ckpt_dir, f)):
         reg = re.findall("\d+\.\d+", f)

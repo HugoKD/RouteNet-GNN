@@ -20,7 +20,9 @@ combien de temps on perd à etre dans la file d'attente ainsi que le delai pour 
 On fait la meme avec le jitter along the flow)
 La mesure paquet loss est calculé via le readout de l'embedding du flow f au temps t = T.
 
-En gros link/queue to path -> path to queue -> queue to link
+En gros link/queue to path -> path to queue -> queue to link 
+
+parametre à tunner : nombre de step dans le message passing, nombre de neurones dans les GRU, voir si LSTM mieux que GRU  et les espaces latents
 """
 class RouteNet_Fermi(tf.keras.Model):
     def __init__(self):
@@ -112,16 +114,22 @@ class RouteNet_Fermi(tf.keras.Model):
 
         #calcul du taux de charge
         # au début le taux est nul ?
+        # see what s traffic, peut être un tenseur représentant le trafic généré pour chaque chemin shape = (num_paths,) ?
+        # path_to_link : Une matrice de mappage qui indique quels chemins passent par quels liens dans le réseau.
+        # Elle est probablement de dimension (num_paths, num_links, 2)
         path_gather_traffic = tf.gather(traffic, path_to_link[:, :, 0])
+        #calcule la somme totale du traffic pour chaque lien
+        #capacity surement un vecteur representant la capacité de chaque lien
         load = tf.math.reduce_sum(path_gather_traffic, axis=1) / capacity
 
         pkt_size = traffic / packets #taille moyen des paquets
 
         # Initialize the initial hidden state for links
+        #information flow level -> traffic sur le chemin
         path_state = self.path_embedding(tf.concat(
             [(traffic - self.z_score['traffic'][0]) / self.z_score['traffic'][1],
              (packets - self.z_score['packets'][0]) / self.z_score['packets'][1],
-             tf.one_hot(model, self.max_num_models),
+             tf.one_hot(model, self.max_num_models), #encode le traffic utilisé (poisson, constant bit rate, ... Chaque chemin peut avoit son propre traffic (max dans le network  self.max_num_models)
              (eq_lambda - self.z_score['eq_lambda'][0]) / self.z_score['eq_lambda'][1],
              (avg_pkts_lambda - self.z_score['avg_pkts_lambda'][0]) / self.z_score['avg_pkts_lambda'][1],
              (exp_max_factor - self.z_score['exp_max_factor'][0]) / self.z_score['exp_max_factor'][1],
@@ -132,9 +140,12 @@ class RouteNet_Fermi(tf.keras.Model):
              (sigma - self.z_score['sigma'][0]) / self.z_score['sigma'][1]], axis=1))
 
         # Initialize the initial hidden state for paths
+        # l etat du lien dépend de son chargmenet et de sa politique (FIFO, SP, WFQ, DRR ..)
         link_state = self.link_embedding(tf.concat([load, policy], axis=1))
 
         # Initialize the initial hidden state for paths
+        # si DRRR ou WFQ alors on précise le poids, par exemple une file avec un poids de 2
+        # aura 2fois plus de bande passante que celle avec un poids de 1
         queue_state = self.queue_embedding(
             tf.concat([(queue_size - self.z_score['queue_size'][0]) / self.z_score['queue_size'][1],
                        priority, weight], axis=1))
@@ -172,10 +183,12 @@ class RouteNet_Fermi(tf.keras.Model):
             link_gru_rnn = tf.keras.layers.RNN(self.link_update, return_sequences=False)
             link_state = link_gru_rnn(queue_gather, initial_state=link_state)
 
+        #Readout = flow level prediction
+        #capacité pour chaque lien d'un chemin donnée grace au mappage link to path
         capacity_gather = tf.gather(capacity, link_to_path)
         input_tensor = path_state_sequence[:, 1:].to_tensor()
 
-        occupancy_gather = self.readout_path(input_tensor)
+        occupancy_gather = self.readout_path(input_tensor) #predit l'occupation des files pour chaque chemin
         length = tf.ensure_shape(length, [None])
         occupancy_gather = tf.RaggedTensor.from_tensor(occupancy_gather, lengths=length)
 
@@ -183,4 +196,4 @@ class RouteNet_Fermi(tf.keras.Model):
                                          axis=1)
         trans_delay = pkt_size * tf.math.reduce_sum(1 / capacity_gather, axis=1)
 
-        return queue_delay + trans_delay
+        return queue_delay + trans_delay #retard est du à la durée de transmission sur le chemin + la durée de passage dans le queue

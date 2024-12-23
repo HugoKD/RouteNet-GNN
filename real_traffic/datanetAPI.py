@@ -23,6 +23,14 @@ from enum import IntEnum
 
 import timeit
 
+#see repo github datanet api
+# le but à partir de tous les ficheirs utilisés par le modele situé dans differents repo (graph, routing ..) on uitilise cette
+#API pour tout regrouper en un
+#on a deux 'parties' : Iterator & Sampler
+# L'iterator, preprocess et lit un sample du dataset
+# Le sampler crée à partir de l'iterator un sample qui contient toutes les info utiles bien ordonnées (info abt netw topo, traffic para, routing conf
+#link perf ..
+
 class DatanetException(Exception):
     """
     Exceptions generated when processing dataset
@@ -535,6 +543,7 @@ class DatanetAPI:
             files.sort()
             # Extend the list of files to process
             self._all_tuple_files.extend([(root, f) for f in files if f.endswith("tar.gz")])
+
 
     def get_available_files(self):
         """

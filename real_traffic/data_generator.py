@@ -23,6 +23,14 @@ import sys
 sys.path.append('../')
 from datanetAPI import DatanetAPI  # This API may be different for different versions of the dataset
 
+
+#TABLE DE ROUTAGE (matrice) : format :  {'AggInfo': {'AvgBw': 0.0, 'PktsGen': 0.0, 'TotalPktsGen': 0.0}, 'Flows': []}
+#bande passante, moyenne, nombre de paquets gén par seconde, nombre de paquets gen
+#une list de flux contenant : la distribution de paquets ainsi que ses para
+#TYhis is a matrix where each cell [i,j] contains aggregated and flow-level
+# information about size and time distributions between source i and destination j.
+
+
 POLICIES = np.array(['WFQ', 'SP', 'DRR', 'FIFO']) #policy for queuing
 
 
@@ -43,14 +51,21 @@ def generator(data_dir, shuffle):
         HG = network_to_hypergraph(G=G, R=R, T=T, P=P) # see later, création d'un hypergraphe contenant TOUTES les infos utiles
 
         ret = hypergraph_to_input_data(HG)
-        num_samples += 1 # num sample + 2 ???
+        num_samples += 1 # num sample += 2 ???
         # SKIP SAMPLES WITH ZERO OR NEGATIVE VALUES
         if not all(x > 0 for x in ret[1]):
             continue
-        yield ret #generator object, we've to iterate with next(generator) to get the value of the next sample !
+        # generator object, we've to iterate with next(generator) to get the value of the next sample ! Input's model
+        #ret is a tuple of length 2
+        #ret[0] correspond aux informations du network,  dict_keys(['traffic', 'packets', 'length', 'model', 'eq_lambda', 'avg_pkts_lambda', 'exp_max_factor', 'pkts_lambda_on', 'avg_t_off', 'avg_t_on', 'ar_a', 'sigma', 'capacity', 'queue_size', 'policy', 'priority', 'weight', 'link_t])
+        #ret[1] correspond aux targets (ici delay avg par flow),
+        #ces delays correpondent aux link to path du graphe (ou au queue to path), pour chaque lien on possède le delay correspond au flow
+        #combien de flow on a (ie de chemins (src, destination)) ?
+        yield ret
 
 
 #transforme un hypergraphe dans un format exploitable par le model RouteNEt
+#donne les features (ret[0]) et les targets delay pour chaque flow (ret[1])
 def hypergraph_to_input_data(HG):
     n_q = 0
     n_p = 0
@@ -113,7 +128,7 @@ def hypergraph_to_input_data(HG):
                     paths.append([int(n.replace('p_', '')), path_pos.index(node)])
             path_to_link.append(paths)
             queue_to_link.append(queues)
-
+    print('\n nbr de queue to path (ou link to path) : ', len(queue_to_path))
     return {"traffic": np.expand_dims(list(nx.get_node_attributes(HG, 'traffic').values()), axis=1),
             "packets": np.expand_dims(list(nx.get_node_attributes(HG, 'packets').values()), axis=1),
             "length": list(nx.get_node_attributes(HG, 'length').values()),
@@ -136,6 +151,7 @@ def hypergraph_to_input_data(HG):
             "queue_to_link": tf.ragged.constant(queue_to_link),
             "path_to_queue": tf.ragged.constant(path_to_queue, ragged_rank=1),
             "path_to_link": tf.ragged.constant(path_to_link, ragged_rank=1)
+
             }, list(nx.get_node_attributes(HG, 'delay').values())
 
 #transforme une rpz réseau (graphe dirigé) en un hypergraphe contenant toutes les infos utiles sous formes de graphes (liens, chemins, queues)

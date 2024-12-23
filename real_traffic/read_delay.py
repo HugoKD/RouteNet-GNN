@@ -8,5 +8,5 @@ print("Contenu du fichier :")
 print(data)
 
 
-print("\nDimensions :", data.shape)
-print("Type des données :", data.dtype)
+print("\nDimensions :", data.shape) #est égal au nombre de link to path sur toutes les config du sample (plusieurs network possible pour un meme sample)
+

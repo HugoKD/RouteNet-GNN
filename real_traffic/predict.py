@@ -1,9 +1,25 @@
-# Faire une prédiction en prenant les meilleurs poids de modele routenet après entraienement
-#ici les real traces contiennent des topologies qui ont reellement erxistées
-#Abilene : Une ancienne infrastructure de recherche utilisée aux États-Unis
-#GEANT : Une infrastructure réseau européenne interconnectant des institutions de recherche
-#Germany50 et Nobel : Des topologies de référence utilisées dans la recherche en réseau
-#les fichiers graphs sont au format graphML (XLM based file format for grpahs)
+'''
+Faire une prédiction en prenant les meilleurs poids de modele routenet après entraienement
+
+Ici les real traces contiennent des topologies qui ont reellement erxistées
+Abilene : Une ancienne infrastructure de recherche utilisée aux États-Unis
+GEANT : Une infrastructure réseau européenne interconnectant des institutions de recherche
+Germany50 et Nobel : Des topologies de référence utilisées dans la recherche en réseau
+les fichiers graphs sont au format graphML (XLM based file format for grpahs)
+
+Pour chaque network possible dans notre DS on a un dossier result_nom_....tar.gz qui contient les config du network
+Dans ce dossier on a :
+- Input File : associé une topologie à un routage
+- des info sur le link usage
+- des infos sur le simulation results
+- sur stability
+- traffic
+- avg delay
+
+On tets la predict sur deux configurations possibles dans le directory test/test
+'''
+
+
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 

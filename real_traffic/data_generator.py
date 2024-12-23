@@ -61,6 +61,7 @@ def generator(data_dir, shuffle):
         #ret[1] correspond aux targets (ici delay avg par flow),
         #ces delays correpondent aux link to path du graphe (ou au queue to path), pour chaque lien on possède le delay correspond au flow
         #combien de flow on a (ie de chemins (src, destination)) ?
+        #pour calculer la loss il suffit de comparer ret[1] avec prediction_delay_real_traces.npy
         yield ret
 
 
@@ -128,7 +129,7 @@ def hypergraph_to_input_data(HG):
                     paths.append([int(n.replace('p_', '')), path_pos.index(node)])
             path_to_link.append(paths)
             queue_to_link.append(queues)
-    print('\n nbr de queue to path (ou link to path) : ', len(queue_to_path))
+    #print('\n nbr de queue to path (ou link to path) : ', len(queue_to_path))
     return {"traffic": np.expand_dims(list(nx.get_node_attributes(HG, 'traffic').values()), axis=1),
             "packets": np.expand_dims(list(nx.get_node_attributes(HG, 'packets').values()), axis=1),
             "length": list(nx.get_node_attributes(HG, 'length').values()),

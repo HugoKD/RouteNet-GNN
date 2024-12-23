@@ -68,7 +68,30 @@ model.load_weights(os.path.join(ckpt_dir, best))
 
 ds_test = input_fn(TEST_PATH, shuffle=False)
 ds_test = ds_test.prefetch(tf.data.experimental.AUTOTUNE)
+length = []
+y_true = []
 
-predictions = model.predict(ds_test, verbose=1)
+
+
+for x, y in ds_test:
+    y_true.extend(y.numpy())
+predictions = np.squeeze(model.predict(ds_test, verbose=1))
+pred = predictions.tolist()
+
+
+def calculate_mape(actual, predicted):
+
+    actual = np.array(actual)
+    predicted = np.array(predicted)
+
+    # Avoid division by zero by filtering out zeros in the actual values
+    non_zero_actual = actual != 0
+    actual = actual[non_zero_actual]
+    predicted = predicted[non_zero_actual]
+
+    mape = np.mean(np.abs((actual - predicted) / actual)) * 100
+    return mape
+
+print('le score MAPE est : ', calculate_mape(y_true, pred)) # prediction sur l ensemble des link to path
 
 np.save(f'predictions_delay_real_traces.npy', np.squeeze(predictions))

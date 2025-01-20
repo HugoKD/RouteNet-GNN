@@ -48,6 +48,7 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(
     save_weights_only=True,
     save_freq='epoch')
 
+
 model.fit(ds_train,
           epochs=50,
           steps_per_epoch=2000,

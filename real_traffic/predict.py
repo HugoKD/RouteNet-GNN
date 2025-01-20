@@ -17,6 +17,9 @@ Dans ce dossier on a :
 - avg delay
 
 On tets la predict sur deux configurations possibles dans le directory test/test
+
+La prediction en sortie du train est la concatenation de tous les networks. Par exemple si j'ai deux networks avec des targets de longueur respective 400
+et 409, ma prediction finale sera de 809
 '''
 
 
@@ -71,13 +74,24 @@ ds_test = ds_test.prefetch(tf.data.experimental.AUTOTUNE)
 length = []
 y_true = []
 
+for data_batch in ds_test.take(2):
+    print('len',len(data_batch))
+    print(data_batch[1].shape)
 
 
 for x, y in ds_test:
     y_true.extend(y.numpy())
-predictions = np.squeeze(model.predict(ds_test, verbose=1))
+
+predictions = model.predict(ds_test, verbose=1)
+predictions = np.squeeze(predictions)
+
+print('predictions shape : ',predictions.shape)
+
 pred = predictions.tolist()
 
+print(type(model.predict(ds_test, verbose=1)))
+print(model.predict(ds_test, verbose=1))
+print(model.predict(ds_test, verbose=1).shape)
 
 def calculate_mape(actual, predicted):
 
@@ -93,5 +107,4 @@ def calculate_mape(actual, predicted):
     return mape
 
 print('le score MAPE est : ', calculate_mape(y_true, pred)) # prediction sur l ensemble des link to path
-
 np.save(f'predictions_delay_real_traces.npy', np.squeeze(predictions))

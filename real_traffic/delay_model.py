@@ -88,6 +88,7 @@ class RouteNet_Fermi(tf.keras.Model):
         path_to_queue = inputs['path_to_queue']
         queue_to_link = inputs['queue_to_link']
 
+
         path_gather_traffic = tf.gather(traffic, path_to_link[:, :, 0])
         load = tf.math.reduce_sum(path_gather_traffic, axis=1) / capacity
 

@@ -120,6 +120,7 @@ ds_test = ds_test.map(lambda x, y, w: transformation(x, y, w, min_max_scaling))
 ds_test = ds_test.prefetch(tf.data.experimental.AUTOTUNE)
 
 predictions = model.predict(ds_test, verbose=1)
+print(type(np.exp(predictions)))
 predictions = np.squeeze(np.exp(predictions))
-print(predictions)
+
 np.save(f'CBR-1400B-2TG-test', predictions)

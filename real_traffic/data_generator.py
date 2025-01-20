@@ -33,7 +33,7 @@ from datanetAPI import DatanetAPI  # This API may be different for different ver
 
 POLICIES = np.array(['WFQ', 'SP', 'DRR', 'FIFO']) #policy for queuing
 
-
+import matplotlib.pyplot as plt
 def generator(data_dir, shuffle):
     try:
         data_dir = data_dir.decode('UTF-8')
@@ -43,8 +43,9 @@ def generator(data_dir, shuffle):
     it = iter(tool) #iterator
     num_samples = 0
     for sample in it:
+        print(sample.performance_matrix.shape)
         num_samples += 1
-        G = nx.DiGraph(sample.get_topology_object()) # info abt topo
+        G = nx.DiGraph(sample.get_topology_object()) # info abt topo cf fichier graphe.txt
         T = sample.get_traffic_matrix() #traffic matrix = flow level informations
         R = sample.get_routing_matrix()  # table de routage
         P = sample.get_performance_matrix() # perf
@@ -175,7 +176,7 @@ def network_to_hypergraph(G, R, T, P):
                         model = 0
                         flow['TimeDistParams']['Distribution'] = 'Poisson'
 
-                        if model == 6 and flow['TimeDistParams']['Distribution'] == 'AR1-1':
+                        if model == 6 and flow['TimeDistParams']['Distribution'] == 'AR1-1': #AR1-1 = Autoregressive -> typique pour modéliser des séries temporelles où la valeur future dépend de la valeur précédente
                             model += 1
                         if 'EqLambda' in flow['TimeDistParams']:
                             time_dist_params[0] = flow['TimeDistParams']['EqLambda']

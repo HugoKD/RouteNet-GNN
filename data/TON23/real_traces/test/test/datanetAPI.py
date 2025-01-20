@@ -545,7 +545,6 @@ class DatanetAPI:
         Array of tuples where each tuple is (root directory, filename)
         
         """
-        
         return (self._all_tuple_files.copy())
     
     def set_files_to_process(self, tuple_files_lst):
@@ -565,10 +564,9 @@ class DatanetAPI:
                 raise DatanetException("ERROR: The argument of set_files_to_process should be a list of tuples -> [(root_dir,file),...]")
             if (not tuple in self._all_tuple_files):
                 raise DatanetException("ERROR: Selected tupla not belong to the list of tuples returned by get_available_files()")
-        
         self._selected_tuple_files = tuple_files_lst.copy()
 
-    def _readRoutingFile(self, routing_file, netSize):
+    def _readRoutingFile(self, routing_file, netSize):  #avoir des données sur la table de routage
         """
         Pending to compare against getSrcPortDst
 

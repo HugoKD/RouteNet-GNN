@@ -22,15 +22,40 @@ results_file = tar.extractfile(dir_info.name+"/simulationResults.txt")
 traffic_file = tar.extractfile(dir_info.name+"/traffic.txt")
 status_file = tar.extractfile(dir_info.name+"/stability.txt")
 input_files = tar.extractfile(dir_info.name+"/input_files.txt")
+link_file = tar.extractfile(dir_info.name+"/linkUsage.txt")
 
 
 ################ Simulation results
-first_params = results_file.readline().decode()[:-2].split('|')[0].split(',')
+text  = results_file.readline().decode()[:-2]
+first_params = text.split('|')[0].split(',')
 first_params = list(map(float,first_params ))
-r = results_file.readline().decode()[:-2][results_file.readline().decode()[:-2].find('|')+1:].split(';')
+second_params = text.split(';')[10].split(":")
+L = text.split(';')
+print(second_params)
+print(len(L))
+'''
+R = []
+for x in r :
+    x = x.split(',')
+    R.append([float(elmt) for elmt in x])'''
 ########
 traffic_line = traffic_file.readline().decode()[:-1]
 ptr = traffic_line.find('|')
 t = traffic_line[ptr+1:].split(';')
 maxAvgLambda = float(traffic_line[:ptr])
 ######*#################
+'''
+link_file = open("../data/TON23/real_traces/test/test/results_geant_1000_0_1/linkUsage.txt","r")
+i,j = 0,1
+for line in link_file:
+    l  = line.split(";")
+    while i <= 484 :
+        if l[i] != str(-1) and len(l[i]) > 1 :
+            print(i,type(l[i]),l[i].split(":"))
+            if len(l[i].split(":")) < 2 : print('')
+        #j += 1
+        i+=1
+    print(len(l))
+    print(j)
+    i,j = 0,1
+'''

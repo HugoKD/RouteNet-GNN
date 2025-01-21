@@ -25,6 +25,8 @@ les targets contiennent des valeurs variants de l'ordre de 10e-6 à 10e-3 -> rea
 ################################################################################################################################
 
 DataAPiNet ne s interesse que au dossier tar 
+Quand on lit les informations fournies par notre dataset on a bien des matrices shape = 409 ou 400
+Cependant ce n'est pas comme cela qu'elles sont de base (par exemple, performance matrix.shape = 22*22)
 traffic (409, 1)
 packets (409, 1)
 length (409,)
@@ -51,18 +53,44 @@ path_to_link (71, None, 2)
 Le model représente un type de modèle ou de distribution de temps utilisé pour simuler le comportement d'UN flux.
 En tout on a 6 type de traffic model :  Poisson, On-Off, Constant Bitrate, Autocorrelated Exponentials, Modulated Exponentials and all models mixed.
 
-Table de routage en input (routing-giant .. par ex), correspond à l ensemble des [src,dst]. Dans l'exemple test/giant on a 22*22 elements = 486
-La fonction crée une matrice de routage où chaque cellule R[i][j] représente le port à utiliser pour que le nœud i puisse atteindre le nœud j. 
-Si aucune information n'est trouvée pour un chemin spécifique, la valeur restera -1 
-(ce qui peut signifier qu'il n'y a pas de chemin défini entre ces deux nœuds dans le fichier de routage).
+###########################################################################
 
+Table de routage en input (routing-giant .. par ex), correspond à l ensemble des [src,dst]. Dans l'exemple test/giant on a 22*22 elements = 486 pour les 22 nodes = network size 
+La fonction crée une matrice de routage où chaque cellule R[i][j] représente le port à utiliser pour que le nœud i puisse atteindre le nœud j. Si aucune information n'est trouvée pour un chemin spécifique, la valeur restera -1 
+(ce qui peut signifier qu'il n'y a pas de chemin défini entre ces deux nœuds dans le fichier de routage).
+Ensuite a partir de cette table, on peut connaitre quel noeud atteindre en etant au current node , et ensuite quel chemin prendre pour aller de i à j 
+
+###########################################################################
 les files graphes sont des fichiers de topologie au format GML (Graph Modelling Language)networkx et sont retourner comme des objects networkx
 
+###########################################################################
 le fichier simulationresults gloablement partage les données suivantes : 
 
 global_packets (nbr de paquets dans le réseau), global_losses, global_delay (partie avant |)
 et _flowresults_line (partie après le |) qui a aussi une longueur de 484
 
+pour les données flowResults : 
+
+La matrice de perf source -> destination est tq : pour chaque paire source/destination : 
+on a une info aggregate information (Données agrégées pour toutes les connexions (ou flux) entre les deux nœuds) et flows (Liste contenant des métriques détaillées pour chaque flux individuel entre les deux nœuds.)
+PktsDrop: Nombre total de paquets perdus.
+
+Chaque (i,j) contient differentes informations tq : 
+- AvgDelay: Délai moyen des paquets
+- AvgLnDelay: Délai logarithmique moyen (souvent utilisé pour lisser les valeurs extrêmes ou représenter des échelles).
+- p10, p20, p50, p80, p90: Percentiles des délais des paquets (par exemple, p50 est la médiane).
+- Jitter: Variation dans les délais des paquets (indicateur de qualité pour des applications sensibles comme la voix sur IP).
+
+2. Flows: Détails des flux
+Chaque flux représente une connexion individuelle entre la source et la destination :
+Les métriques sont similaires à celles d'AggInfo, mais spécifiques à chaque flux.
+
+
+La question que je me pose : est ce que chaque element de la matrice de performance correpond au delay au niveau du noeud pour chaque flow traversant ce meme noeud ? Au maximum on aurait donc 11 flow qui traverse un noeud 
+Chaque element (i,j) est situé à l'indice "22*i + j" 
+
+
+###########################################################################
 Meme chose pour traffic.txt : 
 2 types d'information (avt | et apres) :
  - maxAvgLambda which likely represents the maximum average traffic arrival rate across all flows or paths in the network
@@ -74,16 +102,12 @@ une fois de la même dimension qu'auparavant c'est à dire 22*22 -> 22 comme le 
 Premier constat : le nombre de noeuds ne correspond pas à la shape de prédiction (par exemple 486 vs 400 ou 409)
 (bien une information at flow scale, ?)
 
-La matrice de perf est tq : pour chaque paire source/destination : 
-on a une info aggregate information (Données agrégées pour toutes les connexions (ou flux) entre les deux nœuds) et flows (Liste contenant des métriques détaillées pour chaque flux individuel entre les deux nœuds.)
-PktsDrop: Nombre total de paquets perdus.
-AvgDelay: Délai moyen des paquets
-AvgLnDelay: Délai logarithmique moyen (souvent utilisé pour lisser les valeurs extrêmes ou représenter des échelles).
-p10, p20, p50, p80, p90: Percentiles des délais des paquets (par exemple, p50 est la médiane).
-Jitter: Variation dans les délais des paquets (indicateur de qualité pour des applications sensibles comme la voix sur IP).
-2. Flows: Détails des flux
-Chaque flux représente une connexion individuelle entre la source et la destination :
-Les métriques sont similaires à celles d'AggInfo, mais spécifiques à chaque flux.
+
+
+dans le fichier linkUsage, on a pour chaque ligne une configuration possible d'un réseau, chaque couple noeud i, noeud j est séparé par ';' et chaque information dans ce couple est séparée par ':'
+Pou rchaque couple on a soit -1 si le couple n'est pas relié ou soit le premier element séparé par ':' est [utilization, losses, avgpacketsize] et les autres sont des inforamtions sur la gestion des files d'attentes qui composent
+le noeud (un noeud peut avoir differnetes filles d attente : utilization""losses" "avgPortOccupancy" "maxQueueOccupancy" "avgPacketSize"
+In fine cela sert à créer portStat, pour chaque link (ie pour chaque arrete i,j) on va avoir un dictionnaire ou les 3 premiers elements correpondes aux infs des liens et l'auter correpsond à une liste d'informations sur les queues
 
  '''
 import os
@@ -110,4 +134,4 @@ for data_batch in ds_train.take(2):
     print(data_batch[0].keys())
     for c in data_batch[0].keys():
         print(c, data_batch[0][c].shape)
-    print(data_batch[0]["traffic"])
+

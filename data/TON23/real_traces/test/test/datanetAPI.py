@@ -792,6 +792,7 @@ class DatanetAPI:
             Graph object to be updated
         file: str
             file name that contains the information of the links to be modified: src;dst;bw (bps)
+            #for a 22 nodes graph, there is 22*22 possibles combinations, so 22*22 -1 possible links
             
         Returns
         -------
@@ -809,7 +810,7 @@ class DatanetAPI:
             aux = line.split(";")
             G[int(aux[0])][int(aux[1])][0]["bandwidth"] = int(aux[2])
 
-    def __iter__(self):
+    def __iter__(self):# juste pour lire les fichiers
         """
         
 
@@ -913,7 +914,7 @@ class DatanetAPI:
             ctr += 1
             #print("Progress check: %d/%d" % (ctr,len(tuple_files)))
     
-    def _process_flow_results(self, s):
+    def _process_flow_results(self, s): #créer une amtrice de perf et de traffic
         """
         
 
@@ -934,7 +935,7 @@ class DatanetAPI:
         s._set_global_packets(first_params[0])
         s._set_global_losses(first_params[1])
         s._set_global_delay(first_params[2])
-        r = s._results_line[s._results_line.find('|')+1:].split(';')
+        r = s._results_line[s._results_line.find('|')+1:].split(';') #on prend tout ce qui est après |, chaque couple i,j est separé par un ;
         if (s._flowresults_line):
             f = s._flowresults_line.split(';')
         else:
@@ -947,10 +948,10 @@ class DatanetAPI:
         
         m_result = []
         m_traffic = []
-        for i in range(0,len(r), int(math.sqrt(len(r)))):
+        for i in range(0,len(r), int(math.sqrt(len(r)))): # rappel on obtient l'info du noeud (i,j) avec r[22*i + j] (dans le cas ou 22 = netsize)
             new_result_row = []
             new_traffic_row = []
-            for j in range(i, i+int(math.sqrt(len(r)))):
+            for j in range(i, i+int(math.sqrt(len(r)))): # j varie de 1 à 22
                 dict_result_srcdst = {}
                 aux_agg_ = r[j].split(',')
                 aux_agg = list(map(float, aux_agg_))
@@ -1160,7 +1161,7 @@ class DatanetAPI:
             return -1
         return 0
 
-    def _process_link_usage(self,s):
+    def _process_link_usage(self,s): #associer pour chaque lien des informations utiles
         """
 
         Parameters

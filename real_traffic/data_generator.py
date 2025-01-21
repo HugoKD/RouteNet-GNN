@@ -43,14 +43,13 @@ def generator(data_dir, shuffle):
     it = iter(tool) #iterator
     num_samples = 0
     for sample in it:
-        print(sample.performance_matrix.shape)
         num_samples += 1
         G = nx.DiGraph(sample.get_topology_object()) # info abt topo cf fichier graphe.txt
         T = sample.get_traffic_matrix() #traffic matrix = flow level informations
-        R = sample.get_routing_matrix()  # table de routage
+        R = sample.get_routing_matrix()  # table de routage, ou plutot path pour aller de i à j
         P = sample.get_performance_matrix() # perf
+        #à ce point on a encore des matrice en 22*22
         HG = network_to_hypergraph(G=G, R=R, T=T, P=P) # see later, création d'un hypergraphe contenant TOUTES les infos utiles
-
         ret = hypergraph_to_input_data(HG)
         num_samples += 1 # num sample += 2 ???
         # SKIP SAMPLES WITH ZERO OR NEGATIVE VALUES

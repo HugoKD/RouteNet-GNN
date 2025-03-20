@@ -32,8 +32,8 @@ import tensorflow as tf
 from data_generator import input_fn # Data generator utilise datanet API
 
 import sys
-
 from delay_model import RouteNet_Fermi
+
 
 TEST_PATH = f'../data/TON23/real_traces/test/test'
 
@@ -70,14 +70,20 @@ print("BEST CHECKOINT FOUND FOR: {}".format(best))
 model.load_weights(os.path.join(ckpt_dir, best))
 
 ds_test = input_fn(TEST_PATH, shuffle=False)
+
 ds_test = ds_test.prefetch(tf.data.experimental.AUTOTUNE)
 length = []
 y_true = []
 
-for data_batch in ds_test.take(2):
-    print('len',len(data_batch))
-    print(data_batch[1].shape)
 
+
+for data_batch in ds_test.take(2):
+    '''tensor_randomA = tf.random.uniform(shape=(data_batch[0]["queue_size"].shape[0], 32), minval=0, maxval=1)
+    tensor_randomB = tf.random.uniform(shape=(data_batch[0]["capacity"].shape[0], 32), minval=0, maxval=1)
+    A = tf.gather(tensor_randomA,data_batch[0]["queue_to_path"])
+    B = tf.gather(tensor_randomB,data_batch[0]["link_to_path"])
+    print(tf.concat([A, B], axis=2).shape)'''
+    print(data_batch[0]["path_to_queue"][0])
 
 for x, y in ds_test:
     y_true.extend(y.numpy())
@@ -85,13 +91,9 @@ for x, y in ds_test:
 predictions = model.predict(ds_test, verbose=1)
 predictions = np.squeeze(predictions)
 
-print('predictions shape : ',predictions.shape)
 
 pred = predictions.tolist()
 
-print(type(model.predict(ds_test, verbose=1)))
-print(model.predict(ds_test, verbose=1))
-print(model.predict(ds_test, verbose=1).shape)
 
 def calculate_mape(actual, predicted):
 
@@ -108,3 +110,4 @@ def calculate_mape(actual, predicted):
 
 print('le score MAPE est : ', calculate_mape(y_true, pred)) # prediction sur l ensemble des link to path
 np.save(f'predictions_delay_real_traces.npy', np.squeeze(predictions))
+print(np.squeeze(predictions).shape)

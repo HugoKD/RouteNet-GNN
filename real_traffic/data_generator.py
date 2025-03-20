@@ -33,7 +33,6 @@ from datanetAPI import DatanetAPI  # This API may be different for different ver
 
 POLICIES = np.array(['WFQ', 'SP', 'DRR', 'FIFO']) #policy for queuing
 
-import matplotlib.pyplot as plt
 def generator(data_dir, shuffle):
     try:
         data_dir = data_dir.decode('UTF-8')
@@ -102,8 +101,6 @@ def hypergraph_to_input_data(HG):
                         if d.startswith('q_'):
                             path_pos.append(d)
                     path.append([int(n.replace('p_', '')), path_pos.index(node)])
-            if len(path) == 0:
-                print(in_nodes)
             path_to_queue.append(path)
         elif node.startswith('p_'):
             links = []

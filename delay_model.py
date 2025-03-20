@@ -2,6 +2,17 @@ import tensorflow as tf
 # Les fonctions utiliser dans le papier sont des GRUs, voir l'auter implémentation pour utiliser des LSTM -> meilleurs resultats
 #  sequential model with an RNN (Figure 4). Particularly,we choose a Gated Recurrent Unit (GRU).
 """
+from the paper : DESIGNING GRAPH NEURAL NETWORKS TRAINING DATA WITH LIMITED SAMPLES AND SMALL NETWORK SIZES
+A ϐlow’s state de‑
+pends on the states of links and queues it encounters, a
+queue’s state is inϐluenced by the states of ϐlows that pass
+through it, and a link’s state is inϐluenced by the state of
+queues that may lead network trafϐic into it
+
+each source‑
+destination pair of nodes has a single ϐlow assigned to it.
+
+
 Fonctionnement de l'algo : 
 On initialise tous les q,l,f en encodant les infos de base dans un vecteur dense
 Etape 1 : Message passing (en T steps)
@@ -23,6 +34,8 @@ La mesure paquet loss est calculé via le readout de l'embedding du flow f au te
 En gros link/queue to path -> path to queue -> queue to link 
 
 parametre à tunner : nombre de step dans le message passing, nombre de neurones dans les GRU, voir si LSTM mieux que GRU  et les espaces latents
+
+Parametre à tweeker -> Dim, nbr iteration, max_num_policies, gru -> LSTM
 """
 class RouteNet_Fermi(tf.keras.Model):
     def __init__(self):
@@ -34,14 +47,14 @@ class RouteNet_Fermi(tf.keras.Model):
         self.max_num_models = 7
 
         self.num_policies = 4
-        self.max_num_queues = 3
+        self.max_num_queues = 3 #nombre de queues maximales pour un seul lien (utile pour le one hot encoding)
 
         self.iterations = 8 #nombre de step dans le message passing
         self.path_state_dim = 32 # 32 = dimension de l'embedding du chemin (source, destination)
         self.link_state_dim = 32
         self.queue_state_dim = 32
 
-        self.z_score = {'traffic': [1385.4058837890625, 859.8118896484375], #normalisation des entrées
+        self.z_score = {'traffic': [1385.4058837890625, 859.8118896484375], #normalisation des entrées (mu,sigma)
                         'packets': [1.4015231132507324, 0.8932565450668335],
                         'eq_lambda': [1350.97119140625, 858.316162109375],
                         'avg_pkts_lambda': [0.9117304086685181, 0.9723503589630127],
@@ -56,6 +69,7 @@ class RouteNet_Fermi(tf.keras.Model):
         self.link_update = tf.keras.layers.GRUCell(self.link_state_dim)
         self.queue_update = tf.keras.layers.GRUCell(self.queue_state_dim)
 
+        # En tout l'initialisation du path encode 10 informations ainsi que l'information one hot encodé de modele de traffic composant le flux
         self.path_embedding = tf.keras.Sequential([
             tf.keras.layers.Input(shape=10 + self.max_num_models),
             tf.keras.layers.Dense(self.path_state_dim, activation=tf.keras.activations.relu),
@@ -67,7 +81,7 @@ class RouteNet_Fermi(tf.keras.Model):
             tf.keras.layers.Dense(self.queue_state_dim, activation=tf.keras.activations.relu), #rpz denses des queues
             tf.keras.layers.Dense(self.queue_state_dim, activation=tf.keras.activations.relu)
         ])
-
+        #De même, les liens dépendent du type de politique (one hot encodé) ainsi que du chargement d'où la dil
         self.link_embedding = tf.keras.Sequential([
             tf.keras.layers.Input(shape=self.num_policies + 1),
             tf.keras.layers.Dense(self.link_state_dim, activation=tf.keras.activations.relu),
@@ -81,15 +95,14 @@ class RouteNet_Fermi(tf.keras.Model):
                                   activation=tf.keras.activations.relu),
             tf.keras.layers.Dense(int(self.path_state_dim / 2),
                                   activation=tf.keras.activations.relu),
-            tf.keras.layers.Dense(1)
+            tf.keras.layers.Dense(1) #scalaire
         ], name="PathReadout")
 
-    @tf.function
     def call(self, inputs):
         traffic = inputs['traffic']
         packets = inputs['packets']
         length = inputs['length']
-        model = inputs['model'] #voir ce que ca represente
+        model = inputs['model']
         eq_lambda = inputs['eq_lambda']
         avg_pkts_lambda = inputs['avg_pkts_lambda']
         exp_max_factor = inputs['exp_max_factor']
@@ -98,7 +111,7 @@ class RouteNet_Fermi(tf.keras.Model):
         avg_t_on = inputs['avg_t_on']
         ar_a = inputs['ar_a']
         sigma = inputs['sigma']
-
+        # pour les queues
         capacity = inputs['capacity']
         policy = tf.one_hot(inputs['policy'], self.num_policies)
 
@@ -112,20 +125,22 @@ class RouteNet_Fermi(tf.keras.Model):
         path_to_queue = inputs['path_to_queue']
         queue_to_link = inputs['queue_to_link']
 
-        #calcul du taux de charge
-        # au début le taux est nul ?
-        # see what s traffic, peut être un tenseur représentant le trafic généré pour chaque chemin shape = (num_paths,) ?
-        # path_to_link : Une matrice de mappage qui indique quels chemins passent par quels liens dans le réseau.
-        # Elle est probablement de dimension (num_paths, num_links, 2)
-        path_gather_traffic = tf.gather(traffic, path_to_link[:, :, 0])
-        #calcule la somme totale du traffic pour chaque lien
-        #capacity surement un vecteur representant la capacité de chaque lien
+        ###########################################
+        ##############Initialisation###############
+        ###########################################
+
+
+        # path_to_link[:, :, 0] = on prend seulement l'info des flux qui passent par le lien donné (la position etant sur la deuxieme dim)
+        path_gather_traffic = tf.gather(traffic, path_to_link[:, :, 0]) # Pour chaque lien recupere les traffics qui y passe pour chaque flux,shape = (num_lien,None,1)
+        #Par lien, on fait la somme de tous les traffic qui y passe et on divise par capicity (qui correspond à la capacité de chaque lien)
+        #ie ca calcule la charge de chaque lien
         load = tf.math.reduce_sum(path_gather_traffic, axis=1) / capacity
 
         pkt_size = traffic / packets #taille moyen des paquets
 
         # Initialize the initial hidden state for links
         #information flow level -> traffic sur le chemin
+        #on normalise avec le z-score
         path_state = self.path_embedding(tf.concat(
             [(traffic - self.z_score['traffic'][0]) / self.z_score['traffic'][1],
              (packets - self.z_score['packets'][0]) / self.z_score['packets'][1],
@@ -139,8 +154,7 @@ class RouteNet_Fermi(tf.keras.Model):
              (ar_a - self.z_score['ar_a'][0]) / self.z_score['ar_a'][1],
              (sigma - self.z_score['sigma'][0]) / self.z_score['sigma'][1]], axis=1))
 
-        # Initialize the initial hidden state for paths
-        # l etat du lien dépend de son chargmenet et de sa politique (FIFO, SP, WFQ, DRR ..)
+        #l'initialisation de lien dépend donc de se taux de chargement et de sa politique -> logique cela encode tout ce qu'il faut savoir (num_lien,2)
         link_state = self.link_embedding(tf.concat([load, policy], axis=1))
 
         # Initialize the initial hidden state for paths
@@ -148,7 +162,7 @@ class RouteNet_Fermi(tf.keras.Model):
         # aura 2fois plus de bande passante que celle avec un poids de 1
         queue_state = self.queue_embedding(
             tf.concat([(queue_size - self.z_score['queue_size'][0]) / self.z_score['queue_size'][1],
-                       priority, weight], axis=1))
+                       priority, weight], axis=1)) #shape = (num_queues, dim_queue)
 
         # Iterate t times doing the message passing
         for it in range(self.iterations):
@@ -156,36 +170,44 @@ class RouteNet_Fermi(tf.keras.Model):
             #  LINK AND QUEUE #
             #     TO PATH     #
             ###################
+            #Update flows
+
             queue_gather = tf.gather(queue_state, queue_to_path)
-            link_gather = tf.gather(link_state, link_to_path, name="LinkToPath")
+            link_gather = tf.gather(link_state, link_to_path, name="LinkToPath") #état des liens pour chaque flux
             path_update_rnn = tf.keras.layers.RNN(self.path_update,
                                                   return_sequences=True,
                                                   return_state=True)
             previous_path_state = path_state
 
             path_state_sequence, path_state = path_update_rnn(tf.concat([queue_gather, link_gather], axis=2),
-                                                              initial_state=path_state)
+                                                              initial_state=path_state) # L'état d'un flow dépend de l'ensemble des queues et des liens le composant
 
-            path_state_sequence = tf.concat([tf.expand_dims(previous_path_state, 1), path_state_sequence], axis=1)
+            path_state_sequence = tf.concat([tf.expand_dims(previous_path_state, 1), path_state_sequence], axis=1) #historique
 
             ###################
             #  PATH TO QUEUE  #
             ###################
+            #dépend des flows qui la compose
             path_gather = tf.gather_nd(path_state_sequence, path_to_queue)
-            path_sum = tf.math.reduce_sum(path_gather, axis=1)
-            queue_state, _ = self.queue_update(path_sum, [queue_state])
+            path_sum = tf.math.reduce_sum(path_gather, axis=1) #Pour chaque queue on somme l'état de chaque flow passant par celle ci
+            queue_state, _ = self.queue_update(path_sum, [queue_state]) #Dépend donc de sa valeur passée ainsi que sa valeur update
 
             ###################
             #  QUEUE TO LINK  #
             ###################
-            queue_gather = tf.gather(queue_state, queue_to_link)
+            #dépend des queues qui on le lien en destination
+            queue_gather = tf.gather(queue_state, queue_to_link) #pour chaque lien, on prend l'état des queus qui le "compose"
 
-            link_gru_rnn = tf.keras.layers.RNN(self.link_update, return_sequences=False)
+            link_gru_rnn = tf.keras.layers.RNN(self.link_update, return_sequences=False) #on retourne uniquement le dernier état caché.
             link_state = link_gru_rnn(queue_gather, initial_state=link_state)
 
+
+
+        #### La ou se trouve la singularité du modèle, ici on predit le délai
         #Readout = flow level prediction
         #capacité pour chaque lien d'un chemin donnée grace au mappage link to path
-        capacity_gather = tf.gather(capacity, link_to_path)
+        capacity_gather = tf.gather(capacity, link_to_path) #pour chaque flow, on renvoit les capacitées des liens le composant
+        #A voir
         input_tensor = path_state_sequence[:, 1:].to_tensor()
 
         occupancy_gather = self.readout_path(input_tensor) #predit l'occupation des files pour chaque chemin

@@ -654,7 +654,7 @@ class DatanetAPI:
             Matrix where each cell [i,j] contains the path to go from node
             i to node j.
 
-        """
+        """ #CREATE A REAL PATH TRHOUGH NODES
         netSize = G.number_of_nodes()
         node_port_dst = self._getRoutingSrcPortDst(G)
         R = self._readRoutingFile(routing_file, netSize)
@@ -922,15 +922,15 @@ class DatanetAPI:
         
         m_result = []
         m_traffic = []
-        for i in range(0,len(r), int(math.sqrt(len(r)))):
+        for i in range(0,len(r), int(math.sqrt(len(r)))): # de 22 en 22
             new_result_row = []
             new_traffic_row = []
-            for j in range(i, i+int(math.sqrt(len(r)))):
+            for j in range(i, i+int(math.sqrt(len(r)))): #22 itérations
                 dict_result_srcdst = {}
                 aux_agg_ = r[j].split(',')
                 aux_agg = list(map(float, aux_agg_))
                 dict_result_agg = {'PktsDrop':aux_agg[2], "AvgDelay":aux_agg[3], "AvgLnDelay":aux_agg[4], "p10":aux_agg[5], "p20":aux_agg[6], "p50":aux_agg[7], "p80":aux_agg[8], "p90":aux_agg[9], "Jitter":aux_agg[10]}
-                
+
                 lst_result_flows = []
                 aux_result_flows = f[j].split(':')
                 for flow in aux_result_flows:

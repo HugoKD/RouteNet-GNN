@@ -24,38 +24,93 @@ les targets contiennent des valeurs variants de l'ordre de 10e-6 à 10e-3 -> rea
 ########################################################## Features Analysis ###################################################
 ################################################################################################################################
 
-DataAPiNet ne s interesse que au dossier tar 
-Quand on lit les informations fournies par notre dataset on a bien des matrices shape = 409 ou 400
-Cependant ce n'est pas comme cela qu'elles sont de base (par exemple, performance matrix.shape = 22*22)
-traffic (409, 1)
-packets (409, 1)
-length (409,)
-model (409,)
-eq_lambda (409, 1)
-avg_pkts_lambda (409, 1)
-exp_max_factor (409, 1)
-pkts_lambda_on (409, 1)
-avg_t_off (409, 1)
-avg_t_on (409, 1)
-ar_a (409, 1)
-sigma (409, 1)
-capacity (71, 1)
-queue_size (111, 1)
-policy (71,)
-priority (111,)
-weight (111, 1)
-link_to_path (409, 1)
-queue_to_path (409, 1)
-queue_to_link (71, 1)
-path_to_queue (111, None, 2)
-path_to_link (71, None, 2)
+Fichier traffic.txt : définit les flux de trafic qui vont traverser le réseau pendant la simulation
+RQ : le TOS définit la priorité du flux en fonction de la qualité de service (QoS).
+    0 → Priorité faible.
+    1 → Priorité moyenne.
+    2 → Priorité élevée.
+En effet, différent type de service (streaming, telechargement de fichier) ont des prioritées differentes. Par ex une visio (latence faible) aura un prio plus forte qu'un 
+téléchargement d'un fichier. Les queue sont ceux qui gèrent ce type of service avec la QOS (quality of service) et leur différent type de polotiques (fifo, SP (les paquets 
+prioritaires passent toujours en premiers),...). Par exemple un paquet TOS = 2, sera prioritaire avec une queue SP, aura une bande passante plus grande avec une queue WFQ
+et ne sera pas prioritaire avec une queue FIFO.
 
-Le model représente un type de modèle ou de distribution de temps utilisé pour simuler le comportement d'UN flux.
-En tout on a 6 type de traffic model :  Poisson, On-Off, Constant Bitrate, Autocorrelated Exponentials, Modulated Exponentials and all models mixed.
+DataAPiNet ne s interesse que au dossier tar 
+Quand on lit les informations fournies par notre dataset on a bien des matrices shape = 409 ou 400, pourquoi 409 then = nbr de flux !
+Cependant ce n'est pas comme cela qu'elles sont de base (par exemple, performance matrix.shape = 22*22)
+
+
+#On a 409 flux qui traversent le réseau :
+traffic (409, 1) 
+packets (409, 1) #nbr de paquets par flow ?
+length (409,) #nbr de liens traversés par le flux -> lentgh[i] = j => le flux i passe par j liens -> à comparer avec d'autre feature comme link_to_path ?
+model (409,) #type de modèle/distribution de temps utilisé pour simuler le comportement d'UN flux Parmis 
+avg_pkts_lambda (409, 1) #que des 0, Moyenne du taux d'arrivée des paquets (lambda)	 ### POURQUOI EST CE QUE C'EST NUL ? ######
+exp_max_factor (409, 1)#que des 0,Facteur de maximisation exponentielle, peut etre 0 si non utilisé
+pkts_lambda_on (409, 1)#que des 0, Taux d’arrivée des paquets en phase "ON" (ex: ON-OFF)	
+avg_t_off (409, 1)#que des 0, Durée moyenne des périodes OFF (ex: ON-OFF)	-> normale pour expo
+avg_t_on (409, 1)#que des 0,Durée moyenne des périodes ON (ex: ON-OFF)	-> normale pour expo
+ar_a (409, 1)#que des 0, facteur d'auto regression,non utilisé avec des expo (entre autre, les paquets sont non corrélés)
+sigma (409, 1)#que des 0, utilisé pour les modeles avec des normales 
+capacity (71, 1) #bw
+queue_size (111, 1) -> max = 64k, min = 8k (8,16,32,64bits), plusieurs politiqes par link si SP, WFQ ou DRR. Max 3 queues per port 
+policy (71,) #Même nombre de liens que de policy -> 71, seulement 4 policies (FIFO, SP, WFQ,DRR) 'POLITIQUE DES QUEUS'
+priority (111,) #même nombre que le nombre de queues
+weight (111, 1)#même nombre que le nombre de queues
+link_to_path (409, 1) #Pour chaque chemin on a sa composition en terme de liens (conformémement au feature length)
+queue_to_path (409, 1) # de même pour les queues 
+queue_to_link (71, 1) #Pour chaque lien, l'ensemble des queues qui sont comme une 'source' ce lien 
+path_to_queue (111, None, 2) #même chose que pour path_to_link
+path_to_link (71, None, 2) # path_to_link[i] correspond à tous les chemins qui utilisent le lien l_i et leur position dans ces chemins. -> il y a 71 liens dans le 
+network, chaque lien est traversé par un nombre variable de chemin -> dou la dim 2 = None , dim 3 = 2 car on a (indice du lien, position du lien)
+Par exemple : path_to_lin[10]=ensemble des flux passant par le lien 10 : tf.Tensor(
+[[  9   1] #le premier element est bien la numérotation du flux -> max 408, min = 0, 
+ [ 10   1] #le deuxieme element est bien la position du lien dans le flux ce qui est logique avec le fait qu'au max un flux à une longueur de 5 liens (max = 4, min = 0)
+ [ 65   1]
+ [ 66   1]
+ [ 83   0]
+ [ 84   0]
+ [124   1]
+ [160   3]
+ [178   2]
+ [179   2]
+ [196   1]
+ [250   2]
+ [271   1]
+ [290   2]
+ [308   2]
+ [309   2]
+ [347   1]
+ [348   1]
+ [364   2]
+ [365   2]
+ [381   2]
+ [400   2]], shape=(22, 2), dtype=int32)
+
+
+
+Un flux passe par le meme nombre de queue que de lien. S'il passe par 3 liens, il passe aussi par 3 queues. Il ne peut pas se spliter en plusieurs queues pour un 
+meme lien (ce qui est theoriquement possible puisque un lien peut avoir plusieurs queues (cf queue_to_link)) 
 
 ###########################################################################
+A partir des tables de routage, datanet api créer une matrice de routage ou chaque element i,j correspond au chemin pour aller de i à j (reellement chemin à travers
+les noeuds).
+
+
+Les différents types de modeles (=timeDist) : 
+EXPONENTIAL_T = 0
+DETERMINISTIC_T = 1
+UNIFORM_T = 2
+NORMAL_T = 3
+ONOFF_T = 4
+PPBP_T = 5
+TRACE_T = 6
+EXTERNAL_PY_T = 7
+
+L'état d'un lien à la fin dépend de l'état de chaque queue qui sont à l'entrée de ce lien (ie qui injecte du traffic dans le lien l (port de sortie vers l))
+L'état d'un flow dépend de l'ensemble des queues et de liens le composant 
 
 Table de routage en input (routing-giant .. par ex), correspond à l ensemble des [src,dst]. Dans l'exemple test/giant on a 22*22 elements = 486 pour les 22 nodes = network size 
+C'est donc celle ci qui donne l'information sur l'ensemble des flows qui vont traverser le réseau ?
 La fonction crée une matrice de routage où chaque cellule R[i][j] représente le port à utiliser pour que le nœud i puisse atteindre le nœud j. Si aucune information n'est trouvée pour un chemin spécifique, la valeur restera -1 
 (ce qui peut signifier qu'il n'y a pas de chemin défini entre ces deux nœuds dans le fichier de routage).
 Ensuite a partir de cette table, on peut connaitre quel noeud atteindre en etant au current node , et ensuite quel chemin prendre pour aller de i à j 
@@ -100,8 +155,7 @@ In fine ces deux informations t et r servent à créer deux matrices respectivem
 une fois de la même dimension qu'auparavant c'est à dire 22*22 -> 22 comme le nombre de noeuds dans le réseau 
 
 Premier constat : le nombre de noeuds ne correspond pas à la shape de prédiction (par exemple 486 vs 400 ou 409)
-(bien une information at flow scale, ?)
-
+-> 400 et 409 représente chaque flow !
 
 
 dans le fichier linkUsage, on a pour chaque ligne une configuration possible d'un réseau, chaque couple noeud i, noeud j est séparé par ';' et chaque information dans ce couple est séparée par ':'

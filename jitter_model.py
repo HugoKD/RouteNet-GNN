@@ -153,10 +153,11 @@ class RouteNet_Fermi(tf.keras.Model):
 
 
 
-        ratio_gather = self.readout_path(input_tensor) #on entraine les poids du modeles afin que le readout soit performant
+        ratio_gather = self.readout_path(input_tensor) # Génère un ratio de charge réseau
+        #meme chose que delay
         length = tf.ensure_shape(length, [None])
         ratio_gather = tf.RaggedTensor.from_tensor(ratio_gather, lengths=length)
-        ##diff du modele delay
+
         #Si le trafic (ration_gather) fluctue beaucoup par rapport à la capacité (capacity_gather), cela génère du jitter.
         jitter = tf.math.reduce_sum(ratio_gather / capacity_gather,
                                          axis=1) #agrège les valeurs sur tous les liens traversés pour chaque flux.

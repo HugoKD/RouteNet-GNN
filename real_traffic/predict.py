@@ -32,7 +32,7 @@ import tensorflow as tf
 from data_generator import input_fn # Data generator utilise datanet API
 
 import sys
-from delay_model import RouteNet_Fermi
+from delay_model_LSTM import RouteNet_Fermi
 
 
 TEST_PATH = f'../data/TON23/real_traces/test/test'
@@ -74,16 +74,6 @@ ds_test = input_fn(TEST_PATH, shuffle=False)
 ds_test = ds_test.prefetch(tf.data.experimental.AUTOTUNE)
 length = []
 y_true = []
-
-
-
-for data_batch in ds_test.take(2):
-    '''tensor_randomA = tf.random.uniform(shape=(data_batch[0]["queue_size"].shape[0], 32), minval=0, maxval=1)
-    tensor_randomB = tf.random.uniform(shape=(data_batch[0]["capacity"].shape[0], 32), minval=0, maxval=1)
-    A = tf.gather(tensor_randomA,data_batch[0]["queue_to_path"])
-    B = tf.gather(tensor_randomB,data_batch[0]["link_to_path"])
-    print(tf.concat([A, B], axis=2).shape)'''
-    print(data_batch[0]["path_to_queue"][0])
 
 for x, y in ds_test:
     y_true.extend(y.numpy())

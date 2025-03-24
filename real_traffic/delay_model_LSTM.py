@@ -28,10 +28,10 @@ class RouteNet_Fermi(tf.keras.Model):
                         'avg_t_on': [1.6649284362792969, 2.356407403945923], 'ar_a': [0.0, 1.0], 'sigma': [0.0, 1.0],
                         'capacity': [27611.091796875, 20090.62109375], 'queue_size': [30259.10546875, 21410.095703125]}
 
-        # GRU Cells used in the Message Passing step
-        self.path_update = tf.keras.layers.GRUCell(self.path_state_dim)
-        self.link_update = tf.keras.layers.GRUCell(self.link_state_dim)
-        self.queue_update = tf.keras.layers.GRUCell(self.queue_state_dim)
+        # LSTM Cells used in the Message Passing step
+        self.path_update = tf.keras.layers.LSTMCell(self.path_state_dim)
+        self.link_update = tf.keras.layers.LSTMCell(self.link_state_dim)
+        self.queue_update = tf.keras.layers.LSTMCell(self.queue_state_dim)
 
         self.path_embedding = tf.keras.Sequential([
             tf.keras.layers.Input(shape=10 + self.max_num_models),
@@ -52,15 +52,14 @@ class RouteNet_Fermi(tf.keras.Model):
         ])
 
         self.readout_path = tf.keras.Sequential([
-            tf.keras.layers.Input(shape=self.path_state_dim),
+            tf.keras.layers.Input(shape=(None, self.path_state_dim)),
             tf.keras.layers.Dense(int(self.link_state_dim / 2),
                                   activation=tf.keras.activations.relu),
             tf.keras.layers.Dense(int(self.path_state_dim / 2),
                                   activation=tf.keras.activations.relu),
-            tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid)
+            tf.keras.layers.Dense(1)
         ], name="PathReadout")
 
-    @tf.function
     def call(self, inputs):
         traffic = inputs['traffic']
         packets = inputs['packets']
@@ -93,7 +92,7 @@ class RouteNet_Fermi(tf.keras.Model):
 
         pkt_size = traffic / packets
 
-        # Initialize the initial hidden state for links
+        # Initialize the initial hidden state and cell state for paths
         path_state = self.path_embedding(tf.concat(
             [(traffic - self.z_score['traffic'][0]) / self.z_score['traffic'][1],
              (packets - self.z_score['packets'][0]) / self.z_score['packets'][1],
@@ -106,14 +105,20 @@ class RouteNet_Fermi(tf.keras.Model):
              (avg_t_on - self.z_score['avg_t_on'][0]) / self.z_score['avg_t_on'][1],
              (ar_a - self.z_score['ar_a'][0]) / self.z_score['ar_a'][1],
              (sigma - self.z_score['sigma'][0]) / self.z_score['sigma'][1]], axis=1))
+        path_state_h = path_state  # Hidden state
+        path_state_c = tf.zeros_like(path_state_h)  # Cell state
 
-        # Initialize the initial hidden state for paths
+        # Initialize the initial hidden state and cell state for links
         link_state = self.link_embedding(tf.concat([load, policy], axis=1))
+        link_state_h = link_state
+        link_state_c = tf.zeros_like(link_state_h)
 
-        # Initialize the initial hidden state for paths
+        # Initialize the initial hidden state and cell state for queues
         queue_state = self.queue_embedding(
             tf.concat([(queue_size - self.z_score['queue_size'][0]) / self.z_score['queue_size'][1],
                        priority, weight], axis=1))
+        queue_state_h = queue_state
+        queue_state_c = tf.zeros_like(queue_state_h)
 
         # Iterate t times doing the message passing
         for it in range(self.iterations):
@@ -121,37 +126,47 @@ class RouteNet_Fermi(tf.keras.Model):
             #  LINK AND QUEUE #
             #     TO PATH     #
             ###################
-            queue_gather = tf.gather(queue_state, queue_to_path)
-            link_gather = tf.gather(link_state, link_to_path, name="LinkToPath")
+
+            queue_gather = tf.gather(queue_state_h, queue_to_path)
+            link_gather = tf.gather(link_state_h, link_to_path, name="LinkToPath")
             path_update_rnn = tf.keras.layers.RNN(self.path_update,
                                                   return_sequences=True,
                                                   return_state=True)
-            previous_path_state = path_state
+            previous_path_state_h = path_state_h
 
-            path_state_sequence, path_state = path_update_rnn(tf.concat([queue_gather, link_gather], axis=2),
-                                                              initial_state=path_state)
+            path_state_sequence, path_state_h, path_state_c = path_update_rnn(
+                tf.concat([queue_gather, link_gather], axis=2),
+                initial_state=[path_state_h, path_state_c]
+            )
 
-
-
-            path_state_sequence = tf.concat([tf.expand_dims(previous_path_state, 1), path_state_sequence], axis=1)
+            path_state_sequence = tf.concat([tf.expand_dims(previous_path_state_h, 1), path_state_sequence], axis=1)
 
             ###################
             #  PATH TO QUEUE  #
             ###################
             path_gather = tf.gather_nd(path_state_sequence, path_to_queue)
             path_sum = tf.math.reduce_sum(path_gather, axis=1)
-            queue_state, _ = self.queue_update(path_sum, [queue_state])
+            queue_state_output, [queue_state_h, queue_state_c] = self.queue_update(
+                path_sum, states=[queue_state_h, queue_state_c]
+            )
 
             ###################
             #  QUEUE TO LINK  #
             ###################
-            queue_gather = tf.gather(queue_state, queue_to_link)
+            queue_gather = tf.gather(queue_state_h, queue_to_link)
+            link_rnn = tf.keras.layers.RNN(self.link_update, return_sequences=False, return_state=True)
+            link_state_output, link_state_h, link_state_c = link_rnn(
+                queue_gather, initial_state=[link_state_h, link_state_c]
+            )
 
-            link_gru_rnn = tf.keras.layers.RNN(self.link_update, return_sequences=False)
-            link_state = link_gru_rnn(queue_gather, initial_state=link_state)
+        capacity_gather = tf.gather(capacity, link_to_path)
+        input_tensor = path_state_sequence[:, 1:].to_tensor()
 
-        #seulement un Réseau de neuronnes
-        #On essaye directement de prédire la loss
-        losses = self.readout_path(path_state)
+        occupancy_gather = self.readout_path(input_tensor)
+        length = tf.ensure_shape(length, [None])
+        occupancy_gather = tf.RaggedTensor.from_tensor(occupancy_gather, lengths=length)
 
-        return losses
+        queue_delay = tf.math.reduce_sum(occupancy_gather / capacity_gather, axis=1)
+        trans_delay = pkt_size * tf.math.reduce_sum(1 / capacity_gather, axis=1)
+
+        return queue_delay + trans_delay

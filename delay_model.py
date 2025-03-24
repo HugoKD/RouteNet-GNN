@@ -98,6 +98,7 @@ class RouteNet_Fermi(tf.keras.Model):
             tf.keras.layers.Dense(1) #scalaire
         ], name="PathReadout")
 
+    @tf.function
     def call(self, inputs):
         traffic = inputs['traffic']
         packets = inputs['packets']
@@ -203,10 +204,8 @@ class RouteNet_Fermi(tf.keras.Model):
 
 
 
-        #### La ou se trouve la singularité du modèle, ici on predit le délai
-        #Readout = flow level prediction
-        #capacité pour chaque lien d'un chemin donnée grace au mappage link to path
-        capacity_gather = tf.gather(capacity, link_to_path) #pour chaque flow, on renvoit les capacitées des liens le composant
+
+        capacity_gather = tf.gather(capacity, link_to_path)
         #A voir
         input_tensor = path_state_sequence[:, 1:].to_tensor()
 

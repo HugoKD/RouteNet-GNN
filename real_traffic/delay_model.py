@@ -13,7 +13,7 @@ class RouteNet_Fermi(tf.keras.Model):
         self.num_policies = 4
         self.max_num_queues = 3
 
-        self.iterations = 8
+        self.iterations = 10
         self.path_state_dim = 32
         self.link_state_dim = 32
         self.queue_state_dim = 32
@@ -52,6 +52,11 @@ class RouteNet_Fermi(tf.keras.Model):
             tf.keras.layers.Dense(self.link_state_dim, activation=tf.keras.activations.relu)
         ])
 
+        # dépend du nombre d'étapes du flux donc None, chaque étape à une dimension 32
+        #forcément dépend du nombre de flux = batch_size, mais le batch_size n'est jamais spécifié
+        #Donc shape = (409,1 ) pour chaque étape
+        #D'ou  renvoie un tenseur de dimension (409, max_len, 1)
+        #-> d'une dimension 32 on passe à un scalaire
         self.readout_path = tf.keras.Sequential([
             tf.keras.layers.Input(shape=(None, self.path_state_dim)),
             tf.keras.layers.Dense(int(self.link_state_dim / 2),
@@ -61,7 +66,7 @@ class RouteNet_Fermi(tf.keras.Model):
             tf.keras.layers.Dense(1)
         ], name="PathReadout")
 
-
+    @tf.function
     def call(self, inputs):
         traffic = inputs['traffic']
         packets = inputs['packets']
@@ -135,6 +140,9 @@ class RouteNet_Fermi(tf.keras.Model):
 
             # On redéfinit à chaque itération le path update en gardant self.path_update
             #En gros, le rnn à une mémoire jusqu'à N-1, alors que le GRU à une mémoire depuis le tout début (non re instancié contrairement au RNN)
+            #En somme, on utilise le GRU pour traduire cette dépendance entre les étapes passées et l'étape en cours (ou une étape correspond à un couple (lien,queue))
+            #par exemple, un lien vide au step d'avant traduis souvent que le lien d'après sera vide en tout cas pour un flux donné.
+            #Le rnn lui, permet de lier le dernier état précedent du flux de la derniere iteration, avec les états des queues et des liens présents de TOUS les flux.
             path_update_rnn = tf.keras.layers.RNN(self.path_update,
                                                   return_sequences=True,
                                                   return_state=True)
@@ -145,6 +153,7 @@ class RouteNet_Fermi(tf.keras.Model):
             #Un chemin congestionné à t-1 a des chances d’être encore congestionné à t
             path_state_sequence, path_state = path_update_rnn(tf.concat([queue_gather, link_gather], axis=2),
                                                               initial_state=path_state) #Mémoire n-1 sur le RNN, mais avec le GRU on garde un historique RELEVANT
+
             # La dimension de path_state_sequence dépend du nombre de time steps dans le RNN, ie de la longueur du flux
             #shape = (nbr_flux, 5, self.path_state_dim (=GRU dim)), 5 étant la longueur maximale du flux !
             #On rajoute l'état initial pour avoir une shape (nbr_flux,6,self.path_state_dim (=GRU dim))
@@ -159,7 +168,7 @@ class RouteNet_Fermi(tf.keras.Model):
             #Pour chaque queue, on récupere les états des flow associés à l'indice adéquat
             #Attention on ne récupère pas le flow en entier ! Seulement la partie du flow qui correspond à la queue associée !
             path_gather = tf.gather_nd(path_state_sequence, path_to_queue) #shape (nbr_queues, nbr_max_flux_par_queue , self.state_queue)
-            tf.print(path_gather)
+
 
             path_sum = tf.math.reduce_sum(path_gather, axis=1) #On somme la contributions de l'ensemble des flows à la queue donnée
             queue_state, _ = self.queue_update(path_sum, [queue_state])
@@ -173,17 +182,34 @@ class RouteNet_Fermi(tf.keras.Model):
             link_gru_rnn = tf.keras.layers.RNN(self.link_update, return_sequences=False)
             link_state = link_gru_rnn(queue_gather, initial_state=link_state)
 
+        #### La ou se trouve la singularité du modèle, ici on predit le délai
+        # Readout = flow level prediction
+        # capacité pour chaque lien d'un chemin donnée grace au mappage link to path
+        capacity_gather = tf.gather(capacity, link_to_path) #pour chaque flow, on renvoit les capacitées des liens qui le composent
 
-        capacity_gather = tf.gather(capacity, link_to_path)
-
+        # on exclut le premier timestep (qui correspond seulement à l'état initial)
+        #Etat final, après le Message Passing, des flows decrit à chaque étape (une étape traduisant l'état (Lf_i,Qf_i)
+        #shape = (409, 5 (car 5 étapes au max par flow), 32 (car dimension de l'embedding))
         input_tensor = path_state_sequence[:, 1:].to_tensor()
 
+
         occupancy_gather = self.readout_path(input_tensor)
-        length = tf.ensure_shape(length, [None])
-        occupancy_gather = tf.RaggedTensor.from_tensor(occupancy_gather, lengths=length)
+        length = tf.ensure_shape(length, [None]) #length = taille des flux, cette étape sert à supprimer le padding inutile (on s'en fiche mtn d'avoir un padding
+        #jusqu'à 5
+        occupancy_gather = tf.RaggedTensor.from_tensor(occupancy_gather, lengths=length) #ragged tensor dont la longueur des flux est variable
 
+        #occupancy_gather → Nombre de paquets en attente dans les files d’attente associées aux liens traversés par le flux.
+        #capacity_gather → Capacité des liens traversés par le flux (débit en packets/s).
+        #occupancy_gather / capacity_gather → Temps d’attente estimé dans chaque file.
+        #reduce_sum(..., axis=1) → Somme des délais sur tous les liens traversés.
+        #Si la capacité (capacity_gather) est élevée, les files se vident rapidement → queue_delay est faible.
+        #Si les queues sont pleines (occupancy_gather élevé), et la capacité du lien est faible, alors queue_delay est grand.
+        #Chaque lien traversé ajoute un délai, donc plus il y a de liens (longueur du flow), plus queue_delay peut être grand.
         queue_delay = tf.math.reduce_sum(occupancy_gather / capacity_gather,
-                                         axis=1)
-        trans_delay = pkt_size * tf.math.reduce_sum(1 / capacity_gather, axis=1)
+                                         axis=1) #congestion
 
+        #capacity_gather → Temps de transmission d’un seul bit sur chaque lien.
+        #reduce_sum(..., axis=1) → Somme des délais de transmission sur tous les liens traversés.
+
+        trans_delay = pkt_size * tf.math.reduce_sum(1 / capacity_gather, axis=1) #transmission
         return queue_delay + trans_delay

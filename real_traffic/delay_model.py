@@ -68,6 +68,7 @@ class RouteNet_Fermi(tf.keras.Model):
 
     @tf.function
     def call(self, inputs):
+        print("normal model")
         traffic = inputs['traffic']
         packets = inputs['packets']
         length = inputs['length']

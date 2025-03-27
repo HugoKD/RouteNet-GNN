@@ -181,12 +181,17 @@ load rate rather than link capacity for generalisation capapility's model (espec
 
 
 
-#TODO :
+#TODO :(soutenance)
 
 Tester capacité d'inférence sur des réseaux 30x plus grands que ceux sur lequel il s'est entrainé
 Tester capcité d'inférence sur des petis dataset.
 Comprendre les maths de l apprentissage des GNN
 Comrprendre tous les repo
+En quoi cela est propre à un réseau 5G/6G
+POurquoi cela ne archait pas seulement avec le ckpt classique
+Comprendre LSTM
+Introduire des dépendances plus fortes avec les itérations précédentes, en améliorant la mémoire à T-2 ou T-3 ??
+Approches (LSTM) à relativiser puisque les flux sont relativement cours. Cela marchera bien mieux avec des longs flux.
  '''
 import os
 import tensorflow as tf

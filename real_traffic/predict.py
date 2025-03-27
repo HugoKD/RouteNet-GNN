@@ -23,6 +23,15 @@ et 409, ma prediction finale sera de 809
 '''
 
 
+
+
+results = {
+    'real_traces/test/test' : [1.755254983338671,5.607331761632386,809],
+    'real_traces/test/abilene' : [3.128438592539247,4.726860964017293,131472,],
+    'real_traces/test/germany50' :[8.760057463155169,14.079925831144418,357995,],
+    'real_traces/test/geant' :[2.290086764395679,1.8193376845215492,315044,],
+    'real_traces/test/nobel': [9.868019183485151, 10.40961680566105, 34030, ]
+}
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -32,10 +41,10 @@ import tensorflow as tf
 from data_generator import input_fn # Data generator utilise datanet API
 
 import sys
-from delay_model_LSTM import RouteNet_Fermi
+from delay_model import RouteNet_Fermi
 
 
-TEST_PATH = f'../data/TON23/real_traces/test/test'
+TEST_PATH = f'../data/TON23/real_traces/test/geant'
 
 optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
@@ -50,7 +59,7 @@ model.compile(loss=loss_object,
 best = None
 best_mre = float('inf') #  Mean Relative Error
 
-ckpt_dir = f'./ckpt_dir'
+ckpt_dir = f'./ckpt_dir_GRU'
 
 #deux fichiers, l'index -> cxontient l'index des vairbales du model
 # .datra-0000-of ... contient les valeurs reeelles des poids et des biais

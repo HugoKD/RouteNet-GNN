@@ -2,8 +2,8 @@ import tensorflow as tf
 
 
 class RouteNet_Fermi(tf.keras.Model):
-    def __init__(self):
-        super(RouteNet_Fermi, self).__init__()
+    def __init__(self , iterations = 8 ,path_state_dim = 32, link_state_dim = 32,queue_state_dim=32):
+        super(RouteNet_Fermi,self).__init__()
 
         # Configuration dictionary. It contains the needed Hyperparameters for the model.
         # All the Hyperparameters can be found in the config.ini file
@@ -13,10 +13,10 @@ class RouteNet_Fermi(tf.keras.Model):
         self.num_policies = 4
         self.max_num_queues = 3
 
-        self.iterations = 10
-        self.path_state_dim = 32
-        self.link_state_dim = 32
-        self.queue_state_dim = 32
+        self.iterations = iterations
+        self.path_state_dim = path_state_dim
+        self.link_state_dim = link_state_dim
+        self.queue_state_dim = queue_state_dim
 
         self.z_score = {'traffic': [1385.4058837890625, 859.8118896484375],
                         'packets': [1.4015231132507324, 0.8932565450668335],

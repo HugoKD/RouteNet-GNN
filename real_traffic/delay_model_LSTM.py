@@ -2,8 +2,8 @@ import tensorflow as tf
 
 
 class RouteNet_Fermi(tf.keras.Model):
-    def __init__(self):
-        super(RouteNet_Fermi, self).__init__()
+    def __init__(self , iterations = 8 ,path_state_dim = 32, link_state_dim = 32,queue_state_dim=32):
+        super(RouteNet_Fermi,self).__init__()
 
         # Configuration dictionary. It contains the needed Hyperparameters for the model.
         # All the Hyperparameters can be found in the config.ini file
@@ -13,10 +13,10 @@ class RouteNet_Fermi(tf.keras.Model):
         self.num_policies = 4
         self.max_num_queues = 3
 
-        self.iterations = 8
-        self.path_state_dim = 32
-        self.link_state_dim = 32
-        self.queue_state_dim = 32
+        self.iterations = iterations
+        self.path_state_dim = path_state_dim
+        self.link_state_dim = link_state_dim
+        self.queue_state_dim = queue_state_dim
 
         self.z_score = {'traffic': [1385.4058837890625, 859.8118896484375],
                         'packets': [1.4015231132507324, 0.8932565450668335],
@@ -60,7 +60,6 @@ class RouteNet_Fermi(tf.keras.Model):
             tf.keras.layers.Dense(1)
         ], name="PathReadout")
 
-    @tf.function
     def call(self, inputs):
         print("With LSTM")
         traffic = inputs['traffic']
@@ -107,8 +106,8 @@ class RouteNet_Fermi(tf.keras.Model):
              (avg_t_on - self.z_score['avg_t_on'][0]) / self.z_score['avg_t_on'][1],
              (ar_a - self.z_score['ar_a'][0]) / self.z_score['ar_a'][1],
              (sigma - self.z_score['sigma'][0]) / self.z_score['sigma'][1]], axis=1))
-        path_state_h = path_state  # hidden state
-        path_state_c = tf.zeros_like(path_state_h)  # memory
+        path_state_h = path_state  # Hidden state
+        path_state_c = tf.zeros_like(path_state_h)  # Cell state
 
         # Initialize the initial hidden state and cell state for links
         link_state = self.link_embedding(tf.concat([load, policy], axis=1))
@@ -128,11 +127,13 @@ class RouteNet_Fermi(tf.keras.Model):
             #  LINK AND QUEUE #
             #     TO PATH     #
             ###################
+
             queue_gather = tf.gather(queue_state_h, queue_to_path)
             link_gather = tf.gather(link_state_h, link_to_path, name="LinkToPath")
             path_update_rnn = tf.keras.layers.RNN(self.path_update,
                                                   return_sequences=True,
                                                   return_state=True)
+
             previous_path_state_h = path_state_h
 
             path_state_sequence, path_state_h, path_state_c = path_update_rnn(
@@ -147,7 +148,7 @@ class RouteNet_Fermi(tf.keras.Model):
             ###################
             path_gather = tf.gather_nd(path_state_sequence, path_to_queue)
             path_sum = tf.math.reduce_sum(path_gather, axis=1)
-            queue_state_output, queue_state_h, queue_state_c = self.queue_update(
+            queue_state_output, [queue_state_h, queue_state_c] = self.queue_update(
                 path_sum, states=[queue_state_h, queue_state_c]
             )
 

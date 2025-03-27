@@ -1,25 +1,167 @@
 import matplotlib.pyplot as plt
+import os
+import json
+import os
+import json
+import matplotlib.pyplot as plt
+import numpy as np
 
-history_lstm = {"loss": [9.300387382507324, 5.721864700317383, 4.828422546386719, 4.4281463623046875, 4.1725616455078125, 4.013055324554443, 3.863647699356079, 3.7749814987182617, 3.665883779525757, 3.5821497440338135, 3.5197081565856934, 3.4276654720306396, 3.3865058422088623, 3.3334336280822754, 3.2680227756500244, 3.238903522491455, 3.200521469116211, 3.1530935764312744, 3.12211275100708, 3.1412339210510254], "val_loss": [7.204807281494141, 5.287409782409668, 4.569600582122803, 4.2531352043151855, 4.083836555480957, 3.8536007404327393, 3.7404792308807373, 3.5783028602600098, 3.503605842590332, 3.414870023727417, 3.471000909805298, 3.4129815101623535, 3.3477835655212402, 3.2694385051727295, 3.143265724182129, 3.1293118000030518, 3.1324009895324707, 3.1244521141052246, 3.070359468460083, 3.0517783164978027]}
-history_gru = {"loss": [9.32725715637207, 6.172074794769287, 4.832883834838867, 4.369863986968994, 4.157104969024658, 4.050288200378418, 3.9542365074157715, 3.8470938205718994, 3.8154373168945312, 3.7215464115142822, 3.6781911849975586, 3.5500361919403076, 3.4991655349731445, 3.441189765930176, 3.3819403648376465, 3.3686273097991943, 3.309765338897705, 3.2720322608947754, 3.3101518154144287, 3.2259960174560547], "val_loss": [7.932260990142822, 5.16956901550293, 4.817671298980713, 4.258238315582275, 4.029694080352783, 3.9879679679870605, 3.8219196796417236, 3.913722038269043, 3.7120535373687744, 3.637361764907837, 3.742957592010498, 3.431471586227417, 3.411011219024658, 3.5791964530944824, 3.278451681137085, 3.3998992443084717, 3.370353937149048, 3.2360339164733887, 3.2831850051879883, 3.2316246032714844]}
-# LSTM : 5 epochs
+def plot(features):
+    iterations = features['iterations']
+    dims = features['dim']
+
+    val_loss, loss, labels = [], [], []
+
+    for dim in dims:
+        for iteration in iterations:
+            path_dim = dim["path_state_dim"]
+            link_dim = dim["link_state_dim"]
+            queue_dim = dim["queue_state_dim"]
+
+            file_prefix = f"{iteration}it_{path_dim}p_{link_dim}l_{queue_dim}q"
+            ckpt_history = os.path.join('./ckpts', file_prefix)
+            history_path = os.path.join(ckpt_history, f"history_{file_prefix}.json")
+
+            if os.path.exists(history_path):
+                with open(history_path, 'r') as f:
+                    history = json.load(f)
+
+                loss.append(history['loss'][-1])
+                val_loss.append(history['val_loss'][-1])
+                labels.append(file_prefix)
+            else:
+                print(f"❌ Fichier {history_path} introuvable, ignoré.")
+
+    # --- Bar Plot ---
+    x = np.arange(len(labels))
+    width = 0.35
+
+    plt.figure(figsize=(12, 6))
+    plt.bar(x - width/2, loss, width, label='Training Loss')
+    plt.bar(x + width/2, val_loss, width, label='Validation Loss')
+
+    plt.ylabel("Loss")
+    plt.title("Comparaison des pertes finales par configuration")
+    plt.xticks(x, labels, rotation=45, ha='right')
+    plt.legend()
+    plt.tight_layout()
+    plt.grid(True, axis='y', linestyle='--', alpha=0.6)
+    plt.show()
 
 
+import os
+import json
+import matplotlib.pyplot as plt
+import numpy as np
 
-epochs_lstm = list(range(1, len(history_lstm["loss"]) + 1))
-epochs_gru = list(range(1, len(history_gru["loss"]) + 1))
+def plot_for_iteration(features):
+    iterations = features['iterations']
+    dims = features['dim']
 
-# === Plot ===
-plt.figure(figsize=(10, 6))
-plt.plot(epochs_lstm, history_lstm["loss"], label="LSTM - Training Loss", marker='o')
-plt.plot(epochs_lstm, history_lstm["val_loss"], label="LSTM - Validation Loss", marker='o', linestyle='--')
-plt.plot(epochs_gru, history_gru["loss"], label="GRU - Training Loss", marker='s')
-plt.plot(epochs_gru, history_gru["val_loss"], label="GRU - Validation Loss", marker='s', linestyle='--')
+    val_loss = {it: [] for it in iterations}
+    loss = {it: [] for it in iterations}
+    labels = []
 
-plt.title("Évolution de la loss - LSTM vs GRU")
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+    for dim in dims:
+        label = f"{dim['path_state_dim']}p_{dim['link_state_dim']}l_{dim['queue_state_dim']}q"
+        labels.append(label)
+
+        for iteration in iterations:
+            path_dim = dim["path_state_dim"]
+            link_dim = dim["link_state_dim"]
+            queue_dim = dim["queue_state_dim"]
+
+            file_prefix = f"{iteration}it_{path_dim}p_{link_dim}l_{queue_dim}q"
+            ckpt_history = os.path.join('./ckpts', file_prefix)
+            history_path = os.path.join(ckpt_history, f"history_{file_prefix}.json")
+
+            if os.path.exists(history_path):
+                with open(history_path, 'r') as f:
+                    history = json.load(f)
+
+                loss[iteration].append(history['loss'][-1])
+                val_loss[iteration].append(history['val_loss'][-1])
+            else:
+                print(f"❌ Fichier {history_path} introuvable → ignoré")
+                loss[iteration].append(None)
+                val_loss[iteration].append(None)
+
+    # --- Bar Plot ---
+    x = np.arange(len(labels))
+    width = 0.15
+
+    plt.figure(figsize=(14, 6))
+
+    for idx, iteration in enumerate(iterations):
+        offset = (idx - len(iterations)/2) * width + width/2
+        plt.bar(x + offset, val_loss[iteration], width, label=f'val_loss - {iteration} it')
+        # Optionnel : afficher loss aussi
+        # plt.bar(x + offset, loss[iteration], width, label=f'loss - {iteration} it', alpha=0.5)
+
+    plt.ylabel("Validation Loss")
+    plt.title("Validation loss par configuration (groupé par état dim)")
+    plt.xticks(x, labels, rotation=45, ha='right')
+    plt.legend()
+    plt.grid(True, axis='y', linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_for_embedding_dim(features, fixed_iteration=15):
+    dims = features['dim']
+
+    val_loss = []
+    loss = []
+    labels = []
+
+    for dim in dims:
+        path_dim = dim["path_state_dim"]
+        link_dim = dim["link_state_dim"]
+        queue_dim = dim["queue_state_dim"]
+
+        label = f"{path_dim}p_{link_dim}l_{queue_dim}q"
+        labels.append(label)
+
+        file_prefix = f"{fixed_iteration}it_{path_dim}p_{link_dim}l_{queue_dim}q"
+        ckpt_history = os.path.join('./ckpts', file_prefix)
+        history_path = os.path.join(ckpt_history, f"history_{file_prefix}.json")
+
+        if os.path.exists(history_path):
+            with open(history_path, 'r') as f:
+                history = json.load(f)
+
+            loss.append(history['loss'][-1])
+            val_loss.append(history['val_loss'][-1])
+        else:
+            print(f"❌ Fichier {history_path} introuvable → ignoré")
+            loss.append(None)
+            val_loss.append(None)
+
+    # --- Bar Plot ---
+    x = np.arange(len(labels))
+    width = 0.35
+
+    plt.figure(figsize=(12, 6))
+    plt.bar(x - width/2, loss, width, label='Training Loss')
+    plt.bar(x + width/2, val_loss, width, label='Validation Loss')
+
+    plt.ylabel("Loss")
+    plt.title(f"Influence des dimensions d'embedding (iteration = {fixed_iteration})")
+    plt.xticks(x, labels, rotation=45, ha='right')
+    plt.legend()
+    plt.grid(True, axis='y', linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.show()
+
+
+features = {
+    'iterations': [5, 8, 10, 15],
+    "dim": [
+        {'path_state_dim': 16, 'link_state_dim': 16, 'queue_state_dim': 16},
+        {'path_state_dim': 32, 'link_state_dim': 32, 'queue_state_dim': 32},
+        {'path_state_dim': 64, 'link_state_dim': 64, 'queue_state_dim': 64},
+        {'path_state_dim': 128, 'link_state_dim': 128, 'queue_state_dim': 128},
+    ]
+}
+
+plot_for_embedding_dim(features)

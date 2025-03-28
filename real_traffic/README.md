@@ -1,10 +1,13 @@
-## Modèle implémenté [Ici](https://github.com/BNN-UPC/RouteNet-Fermi)
+## Modèle implémenté [ici](https://github.com/BNN-UPC/RouteNet-Fermi)
 
-Description précise dans les fichiers : 
-- real_traffic/delay_model.py
-- real_traffic/predict.py
-- real_traffic/see_config.py
+### Description détaillée dans les fichiers :
+- `real_traffic/delay_model.py` : architecture du modèle (GRU/LSTM)
+- `real_traffic/predict.py` : script d'inférence
+- `real_traffic/see_config.py` : visualisation des configurations
 
+### Analyse des données :
+- `analyse_linkUsage.py`, `analyse_traffic.py`, `analyse_simulationResults.py`
+→ pour convertir les fichiers bruts en formats lisibles et exploitables
 ## How to reproduce the experiments
 This model has been trained to predict the delay. In this directory, you will find the needed files to train/validate and predict the metrics.
 

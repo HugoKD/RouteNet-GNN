@@ -22,6 +22,57 @@ La prediction en sortie du train est la concatenation de tous les networks. Par 
 et 409, ma prediction finale sera de 809
 '''
 
+'''
+##############################################
+###### Faire une prédiction après train #####
+##############################################
+
+Objectif : Utiliser les meilleurs poids entraînés du modèle RouteNet-Fermi (repo ckpt) pour prédire les délais sur les vraies topologies
+
+##############################################
+####  Données : Real Traces (test set) #####
+##############################################
+
+Les topologies présentes sont inspirées de réseaux **réels ou standards de recherche** :
+
+- `Abilene` : Ancien réseau de recherche US (Internet2)
+- `GEANT`   : Réseau académique européen
+- `Germany50` & `Nobel` : Topologies classiques utilisées en recherche (librairies comme SNDlib)
+- Les graphes sont encodés au format `.graphml` (basé XML pour les graphes)
+
+##############################################
+#### Contenu de chaque dossier tar.gz #####
+##############################################
+
+Chaque fichier `results_<network>_...tar.gz` contient une configuration complète du réseau et ses métriques associées :
+- `input.txt`       : associe la topologie à un routage spécifique
+- `linkUsage.txt`   : stats sur l’utilisation des liens (utilisation, pertes, taille moyenne des paquets)
+- `simulationResults.txt` : performances globales et par flux
+- `stability.txt`   : mesure de convergence/perturbations
+- `traffic.txt`     : détails sur les flux simulés
+- `avgDelay.txt`    : résumé du délai moyen (optionnel)
+
+Ces fichiers sont utilisés pour générer les features en entrée du modèle + la ground truth
+
+##############################################
+#### Phase de test (inférence) ###########
+##############################################
+
+Dans le répertoire `test/test`, on a :
+- Deux instances (réseaux) testées séparément
+- Chaque réseau possède un nombre de flux différent :
+  → Exemple : 409 flux pour GEANT, 400 flux pour Nobel
+
+Lorsqu’on applique le modèle sur l’ensemble du répertoire `test/test`, la prédiction est une **concaténation** des résultats sur chaque réseau
+
+Exemple :
+- test 1 : 409 flux
+- test 2 : 400 flux
+→ prédiction finale = vecteur de taille 809 (409 + 400)
+
+À comparer avec la target globale (target = délai réel mesuré pour chaque flux)
+'''
+
 
 
 
@@ -41,7 +92,7 @@ import tensorflow as tf
 from data_generator import input_fn # Data generator utilise datanet API
 
 import sys
-from delay_model import RouteNet_Fermi
+from delay_model_LSTM import RouteNet_Fermi
 
 
 TEST_PATH = f'../data/TON23/real_traces/test/geant'
@@ -59,7 +110,7 @@ model.compile(loss=loss_object,
 best = None
 best_mre = float('inf') #  Mean Relative Error
 
-ckpt_dir = f'./ckpt_dir_GRU'
+ckpt_dir = f'./ckpt_dir_LSTM'
 
 #deux fichiers, l'index -> cxontient l'index des vairbales du model
 # .datra-0000-of ... contient les valeurs reeelles des poids et des biais
@@ -109,4 +160,5 @@ def calculate_mape(actual, predicted):
 
 print('le score MAPE est : ', calculate_mape(y_true, pred)) # prediction sur l ensemble des link to path
 np.save(f'predictions_delay_real_traces.npy', np.squeeze(predictions))
+print(np.squeeze(predictions))
 print(np.squeeze(predictions).shape)

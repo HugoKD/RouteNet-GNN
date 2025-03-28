@@ -20,7 +20,9 @@ ds_validation = input_fn(VALIDATION_PATH, shuffle=False).prefetch(tf.data.experi
 ds_test = input_fn(TEST_PATH, shuffle=False).prefetch(tf.data.experimental.AUTOTUNE)
 
 def get_len():
-
+    '''
+    Obtenir la longueur de chaque dataset (seule solution)
+    '''
     for type in ['train', 'validation', 'test']:
         counter = 0
         dataset = globals()[f'ds_{type}']
@@ -29,7 +31,7 @@ def get_len():
         print(f'il y a {counter} éléments dans {type}_ds')
 
 
-def train_gru_or_lstm(epoch = 20) :
+def train_gru_and_lstm(epoch = 2) :
     type_training=['GRU', 'LSTM']
     for type in type_training:
         TRAIN_PATH = '../data/TON23/real_traces/train/geant'
@@ -100,6 +102,9 @@ def train_gru_or_lstm(epoch = 20) :
 
 
 def train_tweak_features(features, epoch=5):
+    """
+    Entrainer le modèles sur différents features pour ensuite les analyser dans soutenance.py
+    """
     # Chemins vers les datasets
     TRAIN_PATH = '../data/TON23/real_traces/train/geant'
     VALIDATION_PATH = '../data/TON23/real_traces/validation'

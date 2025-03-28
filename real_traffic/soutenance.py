@@ -1,11 +1,11 @@
-import matplotlib.pyplot as plt
-import os
-import json
 import os
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 
+"""
+Just some lil stuff for plotting charts
+"""
 def plot(features):
     iterations = features['iterations']
     dims = features['dim']
@@ -47,12 +47,6 @@ def plot(features):
     plt.tight_layout()
     plt.grid(True, axis='y', linestyle='--', alpha=0.6)
     plt.show()
-
-
-import os
-import json
-import matplotlib.pyplot as plt
-import numpy as np
 
 def plot_for_iteration(features):
     iterations = features['iterations']
@@ -105,7 +99,6 @@ def plot_for_iteration(features):
     plt.grid(True, axis='y', linestyle='--', alpha=0.6)
     plt.tight_layout()
     plt.show()
-
 
 def plot_for_embedding_dim(features, fixed_iteration=15):
     dims = features['dim']

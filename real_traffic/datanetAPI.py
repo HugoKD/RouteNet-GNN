@@ -23,13 +23,28 @@ from enum import IntEnum
 
 import timeit
 
-#see repo github datanet api
-# le but à partir de tous les ficheirs utilisés par le modele situé dans differents repo (graph, routing ..) on uitilise cette
-#API pour tout regrouper en un
-#on a deux 'parties' : Iterator & Sampler
-# L'iterator, preprocess et lit un sample du dataset
-# Le sampler crée à partir de l'iterator un sample qui contient toutes les info utiles bien ordonnées (info abt netw topo, traffic para, routing conf
-#link perf ..
+"""
+# Voir le repo GitHub : datanetAPI
+# Le but de cette API est de centraliser et prétraiter automatiquement toutes les données issues des différents fichiers
+# (topologies .graphml, routage, trafic, résultats de simulation, etc.) nécessaires à l'entraînement du modèle
+
+# L’architecture repose sur deux composants principaux :
+# 1.  Iterator :
+#    - Lit les fichiers bruts du dataset (topo, routing, link usage, simulation results…)
+#    - Effectue les opérations de préprocessing nécessaires
+#    - Génère un échantillon brut à partir des fichiers
+
+# 2.  Sampler :
+#    - À partir d’un échantillon généré par l’Iterator, construit un “sample complet”
+#    - Ce sample regroupe toutes les informations pertinentes :
+#        → Topologie réseau (nœuds, liens)
+#        → Paramètres de trafic (intensité, modèles, etc.)
+#        → Configuration de routage
+#        → Performances sur les liens et files d’attente
+#        → Ground truth (délai, pertes, jitter…)
+
+# Le sampler produit donc une structure directement exploitable par le modèle (features bien ordonnées + cibles)
+"""
 
 class DatanetException(Exception):
     """

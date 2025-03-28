@@ -9,6 +9,12 @@ from delay_model_LSTM import RouteNet_Fermi as Routenet_Fermi_LSTM
 import json
 import matplotlib.pyplot as plt
 
+"""
+Script to train both GRU and LSTM variants simultaneously using default parameters for RouteNet-Fermi over X epochs.
+The dataset must be located in: ~/data/TON23/real_traces/{test, train, validation}
+"""
+
+
 
 TRAIN_PATH = '../data/TON23/real_traces/train/geant'
 VALIDATION_PATH = '../data/TON23/real_traces/validation'

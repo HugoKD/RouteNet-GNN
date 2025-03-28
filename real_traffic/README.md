@@ -1,4 +1,11 @@
-# How to reproduce the experiments
+## Modèle implémenté [Ici](https://github.com/BNN-UPC/RouteNet-Fermi)
+
+Description précise dans les fichiers : 
+- real_traffic/delay_model.py
+- real_traffic/predict.py
+- real_traffic/see_config.py
+
+## How to reproduce the experiments
 This model has been trained to predict the delay. In this directory, you will find the needed files to train/validate and predict the metrics.
 
 ## Dependencies
